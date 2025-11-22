@@ -108,8 +108,13 @@ const Transactions: React.FC = () => {
     }
   };
 
-  const handleSaveNew = (t: Omit<Transaction, 'id'>) => {
-    if (ocrData && ocrData.transactionId && transactions.find(tr => tr.id === ocrData.transactionId)) {
+  const handleSaveNew = async (t: Omit<Transaction, 'id'> | Omit<Transaction, 'id'>[]) => {
+    if (Array.isArray(t)) {
+      // Bulk Create (Recorrência)
+      for (const transaction of t) {
+        await addTransaction(transaction);
+      }
+    } else if (ocrData && ocrData.transactionId && transactions.find(tr => tr.id === ocrData.transactionId)) {
       // Edit Mode
       updateTransaction(ocrData.transactionId, t);
     } else {
@@ -739,7 +744,7 @@ const SwipeableTransactionItem: React.FC<{
 
 const NewTransactionModal: React.FC<{
   onClose: () => void;
-  onSave: (t: Omit<Transaction, 'id'>) => void;
+  onSave: (t: Omit<Transaction, 'id'> | Omit<Transaction, 'id'>[]) => void;
   cards: any[];
   accounts: any[];
   initialData?: Partial<Transaction & { transactionId?: string; receiver?: string }> | null;
@@ -758,6 +763,10 @@ const NewTransactionModal: React.FC<{
   // Detalhes extras
   const [transactionId, setTransactionId] = useState('');
   const [receiverName, setReceiverName] = useState('');
+
+  // Recorrência
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [recurrenceCount, setRecurrenceCount] = useState('12');
 
   useEffect(() => {
     if (initialData) {
@@ -805,7 +814,26 @@ const NewTransactionModal: React.FC<{
       cardId: tab === 'credit' ? selectedSourceId : undefined,
       installments: (tab === 'credit' && isInstallment) ? parseInt(installments) : 1
     };
-    onSave(newTransaction);
+
+    if (isRecurring && !transactionId) {
+      const transactions: Omit<Transaction, 'id'>[] = [];
+      const count = parseInt(recurrenceCount);
+      const baseDate = new Date(date); // Use the selected date as start
+
+      for (let i = 0; i < count; i++) {
+        const newDate = new Date(baseDate);
+        newDate.setMonth(baseDate.getMonth() + i);
+
+        transactions.push({
+          ...newTransaction,
+          date: newDate.toISOString().split('T')[0],
+          description: `${finalDescription} (${i + 1}/${count})`
+        });
+      }
+      onSave(transactions);
+    } else {
+      onSave(newTransaction);
+    }
   };
 
   return (
@@ -897,6 +925,37 @@ const NewTransactionModal: React.FC<{
               <div>
                 <label className="block text-[10px] font-bold uppercase text-gray-400 mb-1">ID Transação (Opcional)</label>
                 <input type="text" placeholder="ID Transação (Opcional)" value={transactionId} onChange={e => setTransactionId(e.target.value)} className="w-full px-3 py-1.5 rounded-lg bg-white/[0.05] border border-white/[0.1] text-xs text-gray-400 focus:ring-1 focus:ring-teal-500 outline-none font-mono" />
+              </div>
+            )}
+
+            {/* Recorrência (Apenas para novas transações e não crédito) */}
+            {!transactionId && tab !== 'credit' && (
+              <div className="flex items-center gap-3 pt-2 border-t border-white/[0.05]">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="recurring"
+                    checked={isRecurring}
+                    onChange={(e) => setIsRecurring(e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-600 text-teal-500 focus:ring-teal-500/50 bg-gray-700 accent-teal-500"
+                  />
+                  <label htmlFor="recurring" className="text-xs text-gray-300 font-medium select-none cursor-pointer">
+                    Repetir mensalmente
+                  </label>
+                </div>
+                {isRecurring && (
+                  <div className="flex items-center gap-2 ml-auto animate-fade-in">
+                    <input
+                      type="number"
+                      min="2"
+                      max="60"
+                      value={recurrenceCount}
+                      onChange={(e) => setRecurrenceCount(e.target.value)}
+                      className="w-12 px-1 py-1 rounded bg-black/20 border border-white/[0.1] text-white text-xs text-center outline-none focus:border-teal-500"
+                    />
+                    <span className="text-[10px] text-gray-500">meses</span>
+                  </div>
+                )}
               </div>
             )}
           </div>
