@@ -1,0 +1,11 @@
+/* Privacy Mode Styles */
+body.privacy-mode .private-value {
+  filter: blur(6px);
+  transition: filter 0.3s ease;
+  user-select: none;
+  cursor: default;
+}
+
+body.privacy-mode .private-value:hover {
+  filter: blur(2px);
+}
