@@ -7,9 +7,11 @@ import { formatCurrency, getMonthlyPatrimony, getTransactionDate, getMonthlyInco
 import { TransactionType } from '../types';
 import { MonthNavigation } from '../components/MonthNavigation';
 import { Dropdown } from '../components/Dropdown';
+import { useTheme } from '../context/ThemeContext';
 
 const Statistics: React.FC = () => {
   const { transactions, accounts, investments, categories } = useFinance();
+  const { theme } = useTheme();
 
   const [currentDate, setCurrentDate] = useState(() => {
     const saved = localStorage.getItem('stat-selected-date');
@@ -117,8 +119,10 @@ const Statistics: React.FC = () => {
   return (
     <div className="flex flex-col gap-8 animate-fade-in pb-20 md:pb-0">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <h1 className="text-white text-3xl md:text-4xl font-black leading-tight tracking-[-0.033em]">Estatísticas</h1>
-        <p className="text-gray-600 dark:text-gray-400 mt-1">Visualização gráfica do seu comportamento financeiro.</p>
+        <div>
+          <h1 className={`text-3xl md:text-4xl font-black leading-tight tracking-[-0.033em] transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>Estatísticas</h1>
+          <p className={`mt-1 transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Visualização gráfica do seu comportamento financeiro.</p>
+        </div>
         <MonthNavigation
           currentDate={currentDate}
           onMonthChange={(date) => {
@@ -129,10 +133,13 @@ const Statistics: React.FC = () => {
         />
       </div>
 
-      <div className="bg-white/[0.02] backdrop-blur-md rounded-xl shadow-sm p-6 border border-white/[0.05]">
+      <div className={`backdrop-blur-md rounded-xl shadow-sm p-6 border transition-all ${theme === 'light'
+        ? 'bg-white border-gray-200'
+        : 'bg-white/[0.02] border-white/[0.05]'
+        }`}>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="block text-xs font-bold text-gray-400 mb-2">Categoria</label>
+            <label className={`block text-xs font-bold mb-2 transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Categoria</label>
             <Dropdown
               options={[{ label: 'Todas', value: 'Todas' }, ...categories.map(c => ({ label: c.name, value: c.name }))]}
               value={categoryFilter}
@@ -141,7 +148,7 @@ const Statistics: React.FC = () => {
             />
           </div>
           <div>
-            <label className="block text-xs font-bold text-gray-400 mb-2">Conta</label>
+            <label className={`block text-xs font-bold mb-2 transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Conta</label>
             <Dropdown
               options={[{ label: 'Todos', value: 'Todos' }, ...accounts.map(a => ({ label: a.name, value: a.id }))]}
               value={accountFilter}
@@ -150,7 +157,7 @@ const Statistics: React.FC = () => {
             />
           </div>
           <div>
-            <label className="block text-xs font-bold text-gray-400 mb-2">Tipo</label>
+            <label className={`block text-xs font-bold mb-2 transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Tipo</label>
             <Dropdown
               options={[{ label: 'Todos', value: 'all' }, { label: 'Receitas', value: 'income' }, { label: 'Despesas', value: 'expense' }]}
               value={typeFilter}
@@ -163,39 +170,48 @@ const Statistics: React.FC = () => {
 
       {/* Resumo Rápido */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white/[0.02] backdrop-blur-md rounded-xl p-6 border border-white/[0.05] shadow-sm flex items-center gap-4 hover:bg-white/[0.04] transition-colors">
+        <div className={`backdrop-blur-md rounded-xl p-6 border shadow-sm flex items-center gap-4 transition-all ${theme === 'light'
+          ? 'bg-white border-gray-200 hover:bg-gray-50'
+          : 'bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.04]'
+          }`}>
           <div className="size-12 rounded-full bg-green-500/20 text-green-400 flex items-center justify-center shadow-[0_0_10px_rgba(34,197,94,0.3)]">
             <Icon name="trending_up" className="text-2xl" />
           </div>
           <div>
-            <p className="text-sm text-gray-400">Total Entradas</p>
-            <p className="text-xl font-bold text-white"><PrivateValue>{formatCurrency(totalIncome)}</PrivateValue></p>
+            <p className={`text-sm transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Total Entradas</p>
+            <p className={`text-xl font-bold transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}><PrivateValue>{formatCurrency(totalIncome)}</PrivateValue></p>
             <div className="mt-2 flex items-center gap-2 text-xs font-medium text-green-400 bg-green-400/10 w-fit px-2 py-1 rounded-lg">
               <Icon name="event" className="text-sm" />
               <span>{periodLabel}</span>
             </div>
           </div>
         </div>
-        <div className="bg-white/[0.02] backdrop-blur-md rounded-xl p-6 border border-white/[0.05] shadow-sm flex items-center gap-4 hover:bg-white/[0.04] transition-colors">
+        <div className={`backdrop-blur-md rounded-xl p-6 border shadow-sm flex items-center gap-4 transition-all ${theme === 'light'
+          ? 'bg-white border-gray-200 hover:bg-gray-50'
+          : 'bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.04]'
+          }`}>
           <div className="size-12 rounded-full bg-red-500/20 text-red-400 flex items-center justify-center shadow-[0_0_10px_rgba(239,68,68,0.3)]">
             <Icon name="trending_down" className="text-2xl" />
           </div>
           <div>
-            <p className="text-sm text-gray-400">Total Saídas</p>
-            <p className="text-xl font-bold text-white"><PrivateValue>{formatCurrency(totalExpense)}</PrivateValue></p>
+            <p className={`text-sm transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Total Saídas</p>
+            <p className={`text-xl font-bold transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}><PrivateValue>{formatCurrency(totalExpense)}</PrivateValue></p>
             <div className="mt-2 flex items-center gap-2 text-xs font-medium text-red-400 bg-red-400/10 w-fit px-2 py-1 rounded-lg">
               <Icon name="event" className="text-sm" />
               <span>{periodLabel}</span>
             </div>
           </div>
         </div>
-        <div className="bg-white/[0.02] backdrop-blur-md rounded-xl p-6 border border-white/[0.05] shadow-sm flex items-center gap-4 hover:bg-white/[0.04] transition-colors">
+        <div className={`backdrop-blur-md rounded-xl p-6 border shadow-sm flex items-center gap-4 transition-all ${theme === 'light'
+          ? 'bg-white border-gray-200 hover:bg-gray-50'
+          : 'bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.04]'
+          }`}>
           <div className="size-12 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center shadow-[0_0_10px_rgba(59,130,246,0.3)]">
             <Icon name="savings" className="text-2xl" />
           </div>
           <div>
-            <p className="text-sm text-gray-400">Saldo Líquido</p>
-            <p className={`text-xl font-bold ${balance >= 0 ? 'text-green-400' : 'text-red-400'}`}><PrivateValue>{formatCurrency(balance)}</PrivateValue></p>
+            <p className={`text-sm transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Saldo Líquido</p>
+            <p className={`text-xl font-bold transition-colors ${balance >= 0 ? (theme === 'light' ? 'text-green-600' : 'text-green-400') : (theme === 'light' ? 'text-red-600' : 'text-red-400')}`}><PrivateValue>{formatCurrency(balance)}</PrivateValue></p>
             <div className="mt-2 flex items-center gap-2 text-xs font-medium text-blue-400 bg-blue-400/10 w-fit px-2 py-1 rounded-lg">
               <Icon name="event" className="text-sm" />
               <span>{periodLabel}</span>
@@ -220,50 +236,65 @@ const Statistics: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="bg-white/[0.02] backdrop-blur-md rounded-xl shadow-sm p-6 border border-white/[0.05]">
-          <h3 className="text-lg font-bold text-white mb-4">Distribuição de Gastos</h3>
+        <div className={`backdrop-blur-md rounded-xl shadow-sm p-6 border transition-all ${theme === 'light'
+          ? 'bg-white border-gray-200'
+          : 'bg-white/[0.02] border-white/[0.05]'
+          }`}>
+          <h3 className={`text-lg font-bold mb-4 transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>Distribuição de Gastos</h3>
           <div className="min-h-[350px]">
             <PrivateValue>
               <ExpensePieChart data={categoryData} />
             </PrivateValue>
           </div>
           {!hasMonthlyData && (
-            <div className="text-center text-gray-500 mt-4">Nenhuma transação para este mês.</div>
+            <div className={`text-center mt-4 ${theme === 'light' ? 'text-slate-500' : 'text-gray-500'}`}>Nenhuma transação para este mês.</div>
           )}
         </div>
-        <div className="bg-white/[0.02] backdrop-blur-md rounded-xl shadow-sm p-6 border border-white/[0.05]">
-          <h3 className="text-lg font-bold text-white mb-4">Crescimento Patrimonial</h3>
+        <div className={`backdrop-blur-md rounded-xl shadow-sm p-6 border transition-all ${theme === 'light'
+          ? 'bg-white border-gray-200'
+          : 'bg-white/[0.02] border-white/[0.05]'
+          }`}>
+          <h3 className={`text-lg font-bold mb-4 transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>Crescimento Patrimonial</h3>
           <PrivateValue>
             <SavingsBarChart data={savingsData} />
           </PrivateValue>
         </div>
       </div>
 
-      <div className="bg-white/[0.02] backdrop-blur-md rounded-xl shadow-sm p-6 border border-white/[0.05]">
-        <h3 className="text-lg font-bold text-white mb-4">Top Categorias de Gastos</h3>
+      <div className={`backdrop-blur-md rounded-xl shadow-sm p-6 border transition-all ${theme === 'light'
+        ? 'bg-white border-gray-200'
+        : 'bg-white/[0.02] border-white/[0.05]'
+        }`}>
+        <h3 className={`text-lg font-bold mb-4 transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>Top Categorias de Gastos</h3>
         <div className="space-y-2">
-          {categoryData.length === 0 && <div className="text-gray-500">Sem dados para exibir</div>}
+          {categoryData.length === 0 && <div className={theme === 'light' ? 'text-slate-500' : 'text-gray-500'}>Sem dados para exibir</div>}
           {categoryData.map((c, i) => (
-            <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-white/[0.02] border border-white/[0.05]">
+            <div key={i} className={`flex items-center justify-between p-3 rounded-lg border transition-all ${theme === 'light'
+              ? 'bg-slate-50 border-slate-200'
+              : 'bg-white/[0.02] border-white/[0.05]'
+              }`}>
               <div className="flex items-center gap-3">
                 <div className="size-3 rounded-full" style={{ backgroundColor: c.color }} />
-                <span className="text-sm text-gray-300">{c.name}</span>
+                <span className={`text-sm transition-colors ${theme === 'light' ? 'text-slate-600' : 'text-gray-300'}`}>{c.name}</span>
               </div>
-              <span className="text-sm font-bold text-white"><PrivateValue>{formatCurrency(c.value)}</PrivateValue></span>
+              <span className={`text-sm font-bold transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}><PrivateValue>{formatCurrency(c.value)}</PrivateValue></span>
             </div>
           ))}
         </div>
       </div>
 
-      <div className="bg-white/[0.02] backdrop-blur-md rounded-xl shadow-sm p-6 border border-white/[0.05]">
-        <h3 className="text-lg font-bold text-white mb-4">Fluxo de Caixa Anual</h3>
+      <div className={`backdrop-blur-md rounded-xl shadow-sm p-6 border transition-all ${theme === 'light'
+        ? 'bg-white border-gray-200'
+        : 'bg-white/[0.02] border-white/[0.05]'
+        }`}>
+        <h3 className={`text-lg font-bold mb-4 transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>Fluxo de Caixa Anual</h3>
         <div className="h-80">
           <PrivateValue>
             <IncomeExpenseChart data={monthlyEvolutionData} />
           </PrivateValue>
         </div>
         {!hasMonthlyData && (
-          <div className="text-center text-gray-500 mt-4">Nenhuma transação para este mês.</div>
+          <div className={`text-center mt-4 ${theme === 'light' ? 'text-slate-500' : 'text-gray-500'}`}>Nenhuma transação para este mês.</div>
         )}
       </div>
     </div>

@@ -8,9 +8,11 @@ import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
 import { formatCurrency, getTransactionDate } from '../utils/helpers';
 import { Dropdown } from '../components/Dropdown';
+import { useTheme } from '../context/ThemeContext';
 
 const Reports: React.FC = () => {
   const { transactions, accounts, categories } = useFinance();
+  const { theme } = useTheme();
   const { toast } = useToast();
   const { isPremium } = useAuth();
   const [typeFilter, setTypeFilter] = useState<'all' | 'income' | 'expense'>('all');

@@ -46,8 +46,8 @@ const SharedDashboard: React.FC = () => {
     const pendingExpenses = getMonthlyPendingExpenses(transactions, selectedYear, selectedMonth);
 
     const { summary: forecastSummary } = useMemo(() => {
-        return getMonthlyForecastWithCarry(transactions, selectedYear, selectedMonth);
-    }, [transactions, selectedYear, selectedMonth]);
+        return getMonthlyForecastWithCarry(transactions, accounts, selectedYear, selectedMonth);
+    }, [transactions, accounts, selectedYear, selectedMonth]);
 
     const predictedBalanceDisplay = forecastSummary.carryOut;
 

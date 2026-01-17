@@ -15,6 +15,7 @@ export interface Account {
   icon?: string; // Icon name or URL
   accountNumber?: string;
   defaultCardId?: string;
+  initialBalanceDate?: string;
 }
 
 export interface Transaction {

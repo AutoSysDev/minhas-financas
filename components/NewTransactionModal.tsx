@@ -5,6 +5,7 @@ import { Modal } from './Modal';
 import { Transaction, TransactionType, Card, Account } from '../types';
 import { formatCurrency } from '../utils/helpers';
 import { BANKS } from '../constants';
+import { useTheme } from '../context/ThemeContext';
 
 interface NewTransactionModalProps {
     onClose: () => void;
@@ -15,6 +16,7 @@ interface NewTransactionModalProps {
 }
 
 export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({ onClose, onSave, cards, accounts, initialData }) => {
+    const { theme } = useTheme();
     const [tab, setTab] = useState<'expense' | 'income' | 'credit'>('expense');
     const [amount, setAmount] = useState('');
     const [description, setDescription] = useState('');
@@ -32,8 +34,8 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({ onClos
     const [receiverName, setReceiverName] = useState('');
 
     // Recorrência
-    const [isRecurring, setIsRecurring] = useState(false);
-    const [recurrenceCount, setRecurrenceCount] = useState('12');
+    const [recurrenceType, setRecurrenceType] = useState<'single' | 'fixed' | 'installments'>('single');
+    const [recurrenceMonths, setRecurrenceMonths] = useState('12');
 
     useEffect(() => {
         if (initialData) {
@@ -94,10 +96,10 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({ onClos
             installments: (tab === 'credit' && isInstallment) ? parseInt(installments) : 1
         };
 
-        if (isRecurring && !transactionId) {
+        if (recurrenceType !== 'single' && !transactionId) {
             const transactions: Omit<Transaction, 'id'>[] = [];
-            const count = parseInt(recurrenceCount);
-            const baseDate = new Date(date); // Use the selected date as start
+            const count = recurrenceType === 'fixed' ? 24 : parseInt(recurrenceMonths);
+            const baseDate = new Date(date);
 
             for (let i = 0; i < count; i++) {
                 const newDate = new Date(baseDate);
@@ -106,7 +108,9 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({ onClos
                 transactions.push({
                     ...newTransaction,
                     date: newDate.toISOString().split('T')[0],
-                    description: `${finalDescription} (${i + 1}/${count})`
+                    description: recurrenceType === 'fixed'
+                        ? finalDescription
+                        : `${finalDescription} (${i + 1}/${count})`
                 });
             }
             onSave(transactions);
@@ -136,25 +140,25 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({ onClos
 
             <form onSubmit={handleSubmit} className="space-y-4">
                 {/* Seletor de Tipo (Tabs) */}
-                <div className="flex p-1 bg-white/[0.05] rounded-xl">
+                <div className={`flex p-1 rounded-xl transition-all ${theme === 'light' ? 'bg-gray-100' : 'bg-white/[0.05]'}`}>
                     <button
                         type="button"
                         onClick={() => setTab('expense')}
-                        className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 ${tab === 'expense' ? 'bg-white/[0.1] text-red-400 shadow-sm' : 'text-gray-500 hover:text-gray-300'}`}
+                        className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 ${tab === 'expense' ? (theme === 'light' ? 'bg-white text-red-500 shadow-sm ring-1 ring-black/5' : 'bg-white/[0.1] text-red-400 shadow-sm') : 'text-gray-500 hover:text-gray-400'}`}
                     >
                         <Icon name="trending_down" className="text-base" /> Despesa
                     </button>
                     <button
                         type="button"
                         onClick={() => setTab('income')}
-                        className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 ${tab === 'income' ? 'bg-white/[0.1] text-green-400 shadow-sm' : 'text-gray-500 hover:text-gray-300'}`}
+                        className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 ${tab === 'income' ? (theme === 'light' ? 'bg-white text-green-500 shadow-sm ring-1 ring-black/5' : 'bg-white/[0.1] text-green-400 shadow-sm') : 'text-gray-500 hover:text-gray-400'}`}
                     >
                         <Icon name="trending_up" className="text-base" /> Receita
                     </button>
                     <button
                         type="button"
                         onClick={() => setTab('credit')}
-                        className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 ${tab === 'credit' ? 'bg-white/[0.1] text-purple-400 shadow-sm' : 'text-gray-500 hover:text-gray-300'}`}
+                        className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 ${tab === 'credit' ? (theme === 'light' ? 'bg-white text-purple-500 shadow-sm ring-1 ring-black/5' : 'bg-white/[0.1] text-purple-400 shadow-sm') : 'text-gray-500 hover:text-gray-400'}`}
                     >
                         <Icon name="credit_card" className="text-base" /> Cartão
                     </button>
@@ -163,7 +167,7 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({ onClos
                 {/* Valor */}
                 <div>
                     <div className="relative">
-                        <span className="absolute left-0 top-1/2 -translate-y-1/2 text-gray-400 font-medium text-sm pl-3">R$</span>
+                        <span className={`absolute left-0 top-1/2 -translate-y-1/2 font-medium text-sm pl-3 ${theme === 'light' ? 'text-slate-400' : 'text-gray-400'}`}>R$</span>
                         <input
                             type="number"
                             step="0.01"
@@ -171,53 +175,56 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({ onClos
                             placeholder="0,00"
                             value={amount}
                             onChange={e => setAmount(e.target.value)}
-                            className="w-full pl-8 pr-3 py-2 bg-transparent border-b-2 border-white/[0.1] focus:border-teal-500 text-2xl font-black text-white placeholder:text-gray-600 outline-none transition-colors text-center"
+                            className={`w-full pl-8 pr-3 py-2 bg-transparent border-b-2 focus:border-teal-500 text-2xl font-black placeholder:text-gray-400 outline-none transition-colors text-center ${theme === 'light' ? 'border-gray-200 text-slate-900' : 'border-white/[0.1] text-white'}`}
                         />
                     </div>
                 </div>
 
                 {/* Descrição e Detalhes */}
-                <div className="space-y-3 bg-white/[0.03] p-3 rounded-xl border border-white/[0.05]">
+                <div className={`space-y-3 p-3 rounded-xl border transition-all ${theme === 'light' ? 'bg-gray-50 border-gray-100' : 'bg-white/[0.03] border-white/[0.05]'}`}>
                     <div>
-                        <label className="block text-[10px] font-bold uppercase text-gray-400 mb-1">Descrição / Beneficiário</label>
-                        <input type="text" required placeholder="Ex: Almoço, Salário" value={description} onChange={e => setDescription(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-white/[0.1] bg-white/[0.05] text-white text-sm focus:ring-1 focus:ring-teal-500/50 outline-none placeholder-gray-600" />
+                        <label className={`block text-[10px] font-bold uppercase mb-1 transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Descrição / Beneficiário</label>
+                        <input type="text" required placeholder="Ex: Almoço, Salário" value={description} onChange={e => setDescription(e.target.value)} className={`w-full px-3 py-2 rounded-lg border text-sm focus:ring-1 focus:ring-teal-500/50 outline-none placeholder-gray-400 transition-all ${theme === 'light' ? 'bg-white border-gray-200 text-slate-900' : 'bg-white/[0.05] border-white/[0.1] text-white'}`} />
                     </div>
 
-                    {(initialData || transactionId) && (
-                        <div>
-                            <label className="block text-[10px] font-bold uppercase text-gray-400 mb-1">ID Transação (Opcional)</label>
-                            <input type="text" placeholder="ID Transação (Opcional)" value={transactionId} onChange={e => setTransactionId(e.target.value)} className="w-full px-3 py-1.5 rounded-lg bg-white/[0.05] border border-white/[0.1] text-xs text-gray-400 focus:ring-1 focus:ring-teal-500 outline-none font-mono" />
+                    {!transactionId && tab !== 'credit' && (
+                        <div className="grid grid-cols-2 gap-3 pt-1">
+                            <div>
+                                <label className={`block text-[10px] font-bold uppercase mb-1 transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Tipo de Repetição</label>
+                                <Dropdown
+                                    options={[
+                                        { label: 'Única', value: 'single' },
+                                        { label: 'Fixo Mensal', value: 'fixed' },
+                                        { label: 'Parcelado', value: 'installments' }
+                                    ]}
+                                    value={recurrenceType}
+                                    onChange={(val) => setRecurrenceType(val as any)}
+                                    className="w-full"
+                                />
+                            </div>
+                            {recurrenceType === 'installments' && (
+                                <div className="animate-fade-in">
+                                    <label className={`block text-[10px] font-bold uppercase mb-1 transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Nº de Meses</label>
+                                    <div className="flex items-center gap-2 h-[42px]">
+                                        <input
+                                            type="number"
+                                            min="2"
+                                            max="60"
+                                            value={recurrenceMonths}
+                                            onChange={(e) => setRecurrenceMonths(e.target.value)}
+                                            className={`flex-1 px-3 py-2.5 rounded-lg border text-sm outline-none focus:border-teal-500 transition-all ${theme === 'light' ? 'bg-white border-gray-200 text-slate-900' : 'bg-white/[0.05] border-white/[0.1] text-white'}`}
+                                        />
+                                        <span className={`text-[10px] font-bold uppercase ${theme === 'light' ? 'text-slate-500' : 'text-gray-500'}`}>Meses</span>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
 
-                    {/* Recorrência (Apenas para novas transações e não crédito) */}
-                    {!transactionId && tab !== 'credit' && (
-                        <div className="flex items-center gap-3 pt-2 border-t border-white/[0.05]">
-                            <div className="flex items-center gap-2">
-                                <input
-                                    type="checkbox"
-                                    id="recurring"
-                                    checked={isRecurring}
-                                    onChange={(e) => setIsRecurring(e.target.checked)}
-                                    className="w-4 h-4 rounded border-gray-600 text-teal-500 focus:ring-teal-500/50 bg-gray-700 accent-teal-500"
-                                />
-                                <label htmlFor="recurring" className="text-xs text-gray-300 font-medium select-none cursor-pointer">
-                                    Repetir mensalmente
-                                </label>
-                            </div>
-                            {isRecurring && (
-                                <div className="flex items-center gap-2 ml-auto animate-fade-in">
-                                    <input
-                                        type="number"
-                                        min="2"
-                                        max="60"
-                                        value={recurrenceCount}
-                                        onChange={(e) => setRecurrenceCount(e.target.value)}
-                                        className="w-12 px-1 py-1 rounded bg-black/20 border border-white/[0.1] text-white text-xs text-center outline-none focus:border-teal-500"
-                                    />
-                                    <span className="text-[10px] text-gray-500">meses</span>
-                                </div>
-                            )}
+                    {(initialData || transactionId) && (
+                        <div>
+                            <label className={`block text-[10px] font-bold uppercase mb-1 transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>ID Transação (Opcional)</label>
+                            <input type="text" placeholder="ID Transação (Opcional)" value={transactionId} onChange={e => setTransactionId(e.target.value)} className={`w-full px-3 py-1.5 rounded-lg border text-xs focus:ring-1 focus:ring-teal-500 outline-none font-mono transition-all ${theme === 'light' ? 'bg-white border-gray-200 text-slate-500' : 'bg-white/[0.05] border-white/[0.1] text-gray-400'}`} />
                         </div>
                     )}
                 </div>
@@ -225,7 +232,7 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({ onClos
                 {/* Grid Categoria e Data */}
                 <div className="grid grid-cols-2 gap-3">
                     <div>
-                        <label className="block text-xs font-bold text-gray-400 mb-1">Categoria</label>
+                        <label className={`block text-xs font-bold mb-1 transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Categoria</label>
                         <Dropdown
                             options={[
                                 { label: 'Alimentação', value: 'Alimentação' },
@@ -243,14 +250,14 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({ onClos
                         />
                     </div>
                     <div>
-                        <label className="block text-xs font-bold text-gray-400 mb-1">Data</label>
-                        <input type="date" value={date} onChange={e => handleDateChange(e.target.value)} className="w-full px-3 py-2.5 rounded-lg bg-white/[0.05] border border-white/[0.1] text-sm text-white focus:ring-1 focus:ring-teal-500 outline-none" />
+                        <label className={`block text-xs font-bold mb-1 transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Data</label>
+                        <input type="date" value={date} onChange={e => handleDateChange(e.target.value)} className={`w-full px-3 py-2.5 rounded-lg border text-sm focus:ring-1 focus:ring-teal-500 outline-none transition-all ${theme === 'light' ? 'bg-white border-gray-200 text-slate-900' : 'bg-white/[0.05] border-white/[0.1] text-white'}`} />
                     </div>
                 </div>
 
                 {/* Seleção de Conta ou Cartão */}
                 <div>
-                    <label className="block text-xs font-bold text-gray-400 mb-1">
+                    <label className={`block text-xs font-bold mb-1 transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>
                         {tab === 'income' ? 'Conta de Destino' : (tab === 'credit' ? 'Selecione o Cartão' : 'Conta de Saída')}
                     </label>
                     <div className="relative">
@@ -296,7 +303,7 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({ onClos
                             <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${isPaid ? 'bg-teal-500 border-teal-500' : 'border-gray-400'}`} onClick={() => setIsPaid(!isPaid)}>
                                 {isPaid && <Icon name="check" className="text-white text-xs" />}
                             </div>
-                            <span className="text-xs font-medium text-gray-300">{tab === 'income' ? 'Recebido' : 'Pago'}</span>
+                            <span className={`text-xs font-medium transition-colors ${theme === 'light' ? 'text-slate-600' : 'text-gray-300'}`}>{tab === 'income' ? 'Recebido' : 'Pago'}</span>
                         </label>
                     </div>
                 )}

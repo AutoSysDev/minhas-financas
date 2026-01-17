@@ -7,7 +7,7 @@ import { useSharedAccount } from './SharedAccountContext';
 import { useTransactions } from '../hooks/useTransactions';
 import { useAccounts, useCards, useBudgets, useGoals, useCategories, useInvestments } from '../hooks/useFinanceQueries';
 import { useQueryClient } from '@tanstack/react-query';
-import { generateId } from '../utils/helpers';
+import { generateId, getAccountCumulativeBalance } from '../utils/helpers';
 
 interface FinanceContextType {
   accounts: Account[];
@@ -21,6 +21,7 @@ interface FinanceContextType {
   addTransaction: (t: Omit<Transaction, 'id'>) => Promise<void>;
   updateTransaction: (id: string, t: Partial<Transaction>) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
+  deleteTransactions: (ids: string[]) => Promise<void>;
   addAccount: (a: Omit<Account, 'id' | 'balance'> & { balance: number }) => Promise<void>;
   updateAccount: (id: string, data: Partial<Account>) => Promise<void>;
   deleteAccount: (id: string) => Promise<void>;
@@ -429,7 +430,54 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
     }
   };
 
-  const addAccount = async (newAccount: Omit<Account, 'id' | 'balance'> & { balance: number }) => {
+  const deleteTransactions = async (ids: string[]) => {
+    if (!user) return;
+
+    const { data: transactionsToDelete } = await supabase.from('transactions').select('*').in('id', ids);
+
+    if (transactionsToDelete && transactionsToDelete.length > 0) {
+      const { error } = await supabase.from('transactions').delete().in('id', ids);
+      if (!error) {
+
+        // Batch updates to avoid race conditions with local state
+        const accountAdjustments: Record<string, number> = {};
+        const cardAdjustments: Record<string, number> = {};
+
+        transactionsToDelete.forEach(t => {
+          // Account balance adjustment
+          if (t.account_id && t.is_paid && !t.card_id) {
+            const change = t.type === 'INCOME' ? -t.amount : t.amount;
+            accountAdjustments[t.account_id] = (accountAdjustments[t.account_id] || 0) + change;
+          }
+
+          // Card invoice adjustment
+          if (t.card_id && t.type === 'EXPENSE') {
+            cardAdjustments[t.card_id] = (cardAdjustments[t.card_id] || 0) - t.amount;
+          }
+        });
+
+        // Apply Account Adjustments
+        for (const [accId, change] of Object.entries(accountAdjustments)) {
+          const { data: accData } = await supabase.from('accounts').select('balance').eq('id', accId).single();
+          if (accData) {
+            await supabase.from('accounts').update({ balance: accData.balance + change }).eq('id', accId);
+          }
+        }
+
+        // Apply Card Adjustments
+        for (const [cardId, change] of Object.entries(cardAdjustments)) {
+          const { data: cardData } = await supabase.from('cards').select('current_invoice').eq('id', cardId).single();
+          if (cardData) {
+            await supabase.from('cards').update({ current_invoice: cardData.current_invoice + change }).eq('id', cardId);
+          }
+        }
+
+        invalidateAll();
+      }
+    }
+  };
+
+  const addAccount = async (newAccount: Omit<Account, 'id' | 'balance'> & { balance: number; initialBalanceDate?: string }) => {
     if (!user) return;
     const dbAccount = {
       user_id: user.id,
@@ -450,7 +498,7 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
         user_id: user.id,
         description: 'Saldo Inicial',
         amount: newAccount.balance,
-        date: new Date().toISOString().split('T')[0],
+        date: newAccount.initialBalanceDate || new Date().toISOString().split('T')[0],
         type: TransactionType.INCOME,
         category: 'Saldo Inicial',
         account_id: createdAccount.id,
@@ -468,7 +516,33 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
     if (data.name !== undefined) dbData.name = data.name;
     if (data.bankName !== undefined) dbData.bank_name = data.bankName;
     if (data.type !== undefined) dbData.type = data.type;
-    if (data.balance !== undefined) dbData.balance = data.balance;
+    if (data.balance !== undefined) {
+      dbData.balance = data.balance;
+
+      // Se o saldo foi alterado manualmente, precisamos criar uma transação de ajuste
+      // porque o sistema calcula o saldo com base nas transações (triggers no BD)
+      const currentComputedBalance = getAccountCumulativeBalance(
+        transactions,
+        id,
+        new Date().getFullYear(),
+        new Date().getMonth()
+      );
+
+      const difference = data.balance - currentComputedBalance;
+
+      if (Math.abs(difference) > 0.01) {
+        await supabase.from('transactions').insert({
+          user_id: user.id,
+          description: 'Ajuste de Saldo',
+          amount: Math.abs(difference),
+          date: new Date().toISOString().split('T')[0],
+          type: difference > 0 ? TransactionType.INCOME : TransactionType.EXPENSE,
+          category: 'Outros',
+          account_id: id,
+          is_paid: true
+        });
+      }
+    }
     if (data.color !== undefined) dbData.color = data.color;
     if (data.accountNumber !== undefined) dbData.account_number = data.accountNumber;
     if (data.icon !== undefined) dbData.icon = data.icon;
@@ -503,7 +577,7 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
     if (!error) invalidateAll();
   };
 
-  const addCard = async (newCard: Omit<Card, 'id' | 'currentInvoice'>) => {
+  const addCard = async (newCard: Omit<Card, 'id'>) => {
     if (!user) return;
 
     // Insert card with linkedAccountId
@@ -513,7 +587,7 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
       last_digits: newCard.lastDigits,
       brand: newCard.brand,
       limit_amount: newCard.limit,
-      current_invoice: 0,
+      current_invoice: newCard.currentInvoice || 0,
       closing_day: newCard.closingDay,
       due_day: newCard.dueDay,
       status: newCard.status,
@@ -524,6 +598,25 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
     };
 
     const { data: insertedCard, error } = await supabase.from('cards').insert(dbCard).select().single();
+
+    if (!error && insertedCard && newCard.currentInvoice > 0) {
+      // Se a fatura vence no próximo mês, vamos colocar a data no primeiro dia do próximo mês
+      // para que apareça no dashboard de resumo do mês correto (fevereiro no exemplo do usuário)
+      const today = new Date();
+      const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+      const transactionDate = nextMonth.toISOString().split('T')[0];
+
+      await supabase.from('transactions').insert({
+        user_id: user.id,
+        description: 'Saldo Inicial (Fatura)',
+        amount: newCard.currentInvoice,
+        date: transactionDate,
+        type: 'EXPENSE',
+        category: 'Outros',
+        card_id: insertedCard.id,
+        is_paid: false
+      });
+    }
 
     if (!error && insertedCard && newCard.linkedAccountId) {
       // If card is linked to an account, check if account needs a default card
@@ -997,7 +1090,7 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
   return (
     <FinanceContext.Provider value={{
       accounts, transactions, cards, budgets, goals, categories, investments,
-      addTransaction, updateTransaction, deleteTransaction, addAccount, updateAccount, deleteAccount, addGoal, updateGoal, deleteGoal, addCard, updateCard, deleteCard, addBudget, deleteBudget, addCategory, updateCategory, deleteCategory, addInvestment, updateInvestment, deleteInvestment, linkCardToAccount, setDefaultCard, resetData, recalculateBalances, deleteAllUserData, restoreDefaultCategories, loading
+      addTransaction, updateTransaction, deleteTransaction, deleteTransactions, addAccount, updateAccount, deleteAccount, addGoal, updateGoal, deleteGoal, addCard, updateCard, deleteCard, addBudget, deleteBudget, addCategory, updateCategory, deleteCategory, addInvestment, updateInvestment, deleteInvestment, linkCardToAccount, setDefaultCard, resetData, recalculateBalances, deleteAllUserData, restoreDefaultCategories, loading
     }}>
       {children}
     </FinanceContext.Provider>

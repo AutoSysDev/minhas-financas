@@ -179,7 +179,7 @@ export function useCreateCard() {
     const queryClient = useQueryClient();
     const { user } = useAuth();
     return useMutation({
-        mutationFn: (card: Omit<Card, 'id' | 'currentInvoice'>) =>
+        mutationFn: (card: Omit<Card, 'id'>) =>
             financeService.createCard(user?.id || '', card),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: financeKeys.all });

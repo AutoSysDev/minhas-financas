@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Icon } from './Icon';
+import { useTheme } from '../context/ThemeContext';
 
 export interface Option {
     label: string;
@@ -31,6 +32,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
 }) => {
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
+    const { theme } = useTheme();
 
     const selectedOption = options.find(opt => opt.value === value);
 
@@ -46,37 +48,40 @@ export const Dropdown: React.FC<DropdownProps> = ({
 
     return (
         <div className={`relative ${className}`} ref={dropdownRef}>
-            {label && <label className="block text-xs font-bold text-gray-400 mb-1">{label}</label>}
+            {label && <label className={`block text-xs font-bold mb-1 transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>{label}</label>}
             <button
                 type="button"
                 onClick={() => setIsOpen(!isOpen)}
-                className={`w-full flex items-center ${minimal ? 'justify-end gap-2' : 'justify-between px-3 py-2.5 border rounded-xl'} transition-all ${minimal
-                    ? 'bg-transparent border-none text-white hover:text-teal-400'
-                    : isOpen
-                        ? 'border-teal-500 ring-2 ring-teal-500/20 bg-white/[0.08]'
-                        : 'border-white/[0.1] bg-white/[0.05] hover:bg-white/[0.08]'
-                    }`}
+                className={`w-full flex items-center transition-all ${minimal
+                    ? `justify-end gap-1.5 bg-transparent border-none hover:text-teal-400 py-1 ${theme === 'light' ? 'text-slate-900' : 'text-white'}`
+                    : `justify-between px-3 py-2.5 border rounded-xl transition-all ${theme === 'light'
+                        ? 'bg-white border-gray-200 hover:bg-gray-50 hover:border-teal-500/30 text-slate-900'
+                        : 'bg-white/[0.05] border-white/[0.1] hover:bg-white/[0.1] hover:border-white/[0.2] text-white'
+                    }`
+                    } ${!minimal && isOpen ? 'border-teal-500 ring-2 ring-teal-500/20 bg-white/[0.08]' : ''}`}
             >
-                <div className={`flex items-center gap-2 overflow-hidden ${minimal ? 'flex-row-reverse' : ''}`}>
+                <div className={`flex items-center gap-2 overflow-hidden ${minimal ? 'flex-row' : ''}`}>
                     {selectedOption?.logo ? (
-                        <img src={selectedOption.logo} alt="" className="size-5 rounded-full object-cover" />
+                        <img src={selectedOption.logo} alt="" className="size-5 rounded-full object-cover shadow-sm" />
                     ) : (
-                        icon && !minimal && <Icon name={icon} className="text-gray-400" />
+                        icon && !minimal && <Icon name={icon} className={theme === 'light' ? 'text-slate-400' : 'text-gray-400'} />
                     )}
-                    <span className={`text-sm font-medium truncate ${selectedOption ? 'text-white' : 'text-gray-500'}`}>
+                    <span className={`text-sm font-medium truncate ${selectedOption ? (theme === 'light' ? 'text-slate-900' : 'text-white') : 'text-gray-500'}`}>
                         {selectedOption ? selectedOption.label : placeholder || 'Selecione'}
                     </span>
                 </div>
-                {!minimal && (
-                    <Icon
-                        name="expand_more"
-                        className={`text-gray-400 transition-transform duration-200 flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`}
-                    />
-                )}
+                <Icon
+                    name="expand_more"
+                    className={`transition-transform duration-300 flex-shrink-0 ${minimal ? 'text-[16px] text-gray-500' : 'text-lg text-gray-400'} ${isOpen ? 'rotate-180 text-teal-400' : ''}`}
+                />
             </button>
 
             {isOpen && (
-                <div className={`absolute z-50 mt-2 overflow-hidden bg-[#1a1d21] border border-white/[0.1] rounded-xl shadow-2xl animate-fade-in max-h-60 overflow-y-auto ring-1 ring-white/5 ${minimal ? 'right-0 w-48' : 'w-full'}`}>
+                <div className={`absolute z-50 mt-2 overflow-hidden border rounded-xl shadow-2xl animate-fade-in max-h-60 overflow-y-auto ring-1 transition-all ${minimal ? 'right-0 w-48' : 'w-full'
+                    } ${theme === 'light'
+                        ? 'bg-white border-gray-200 ring-black/5'
+                        : 'bg-[#1a1d21] border-white/[0.1] ring-white/5'
+                    }`}>
                     {options.map((option) => (
                         <button
                             key={option.value}
@@ -87,13 +92,15 @@ export const Dropdown: React.FC<DropdownProps> = ({
                             }}
                             className={`w-full flex items-center px-4 py-3 text-sm text-left transition-colors ${option.value === value
                                 ? 'bg-teal-500 text-white font-bold'
-                                : 'text-gray-300 hover:bg-white/[0.05] hover:text-white'
+                                : theme === 'light'
+                                    ? 'text-slate-600 hover:bg-gray-50 hover:text-teal-600'
+                                    : 'text-gray-300 hover:bg-white/[0.05] hover:text-white'
                                 }`}
                         >
                             {option.logo ? (
                                 <img src={option.logo} alt="" className="size-6 rounded-full object-cover mr-2" />
                             ) : (
-                                option.icon && <Icon name={option.icon} className={`mr-2 text-lg ${option.value === value ? 'text-white' : 'text-gray-400'}`} />
+                                option.icon && <Icon name={option.icon} className={`mr-2 text-lg ${option.value === value ? 'text-white' : (theme === 'light' ? 'text-slate-400' : 'text-gray-400')}`} />
                             )}
                             {option.label}
                         </button>

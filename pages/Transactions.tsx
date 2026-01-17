@@ -14,9 +14,12 @@ import { formatCurrency, formatDate } from '../utils/helpers';
 import { useToast } from '../context/ToastContext';
 import { TransactionListSkeleton } from '../components/TransactionListSkeleton';
 import { FiscalManager } from '../components/FiscalManager';
+import { useTheme } from '../context/ThemeContext';
+import { MonthYearPicker } from '../components/MonthYearPicker';
 
 const Transactions: React.FC = () => {
-  const { cards, accounts } = useFinance();
+  const { cards, accounts, transactions: allTransactions, deleteTransactions } = useFinance();
+  const { theme } = useTheme();
 
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -25,6 +28,54 @@ const Transactions: React.FC = () => {
   const [isNewModalOpen, setIsNewModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [viewingTransaction, setViewingTransaction] = useState<Transaction | null>(null);
+
+  // Recurring Delete State
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [transactionToDelete, setTransactionToDelete] = useState<Transaction | null>(null);
+  const [recurringGroup, setRecurringGroup] = useState<Transaction[]>([]);
+
+  // Helper to extract recurrence info
+  const extractRecurrenceData = (description: string) => {
+    const match = description.match(/^(.*?) \((\d+)\/(\d+)\)$/);
+    if (match) {
+      return {
+        baseDescription: match[1],
+        current: parseInt(match[2]),
+        total: parseInt(match[3])
+      };
+    }
+    return null;
+  };
+
+  const executeRecurringDelete = async (mode: 'single' | 'future') => {
+    if (!transactionToDelete) return;
+
+    if (mode === 'single') {
+      deleteTransactionMutation.mutate(transactionToDelete.id, {
+        onSuccess: () => {
+          toast.success("Transação excluída!");
+          setDeleteModalOpen(false);
+          setTransactionToDelete(null);
+          setViewingTransaction(null);
+        },
+        onError: (error) => {
+          toast.error("Erro ao excluir: " + error.message);
+        }
+      });
+    } else {
+      // Delete future
+      const ids = recurringGroup.map(t => t.id);
+      try {
+        await deleteTransactions(ids);
+        toast.success(`${ids.length} transações excluídas!`);
+        setDeleteModalOpen(false);
+        setTransactionToDelete(null);
+        setViewingTransaction(null);
+      } catch (e: any) {
+        toast.error("Erro ao excluir transações: " + e.message);
+      }
+    }
+  };
 
   // OCR State
   const [isProcessing, setIsProcessing] = useState(false);
@@ -145,18 +196,46 @@ const Transactions: React.FC = () => {
     setViewingTransaction(transaction);
   };
 
-  const handleDelete = (e: React.MouseEvent | React.TouchEvent, id: string) => {
-    e.stopPropagation();
-    if (window.confirm("Deseja realmente excluir esta transação?")) {
-      deleteTransactionMutation.mutate(id, {
-        onSuccess: () => {
-          toast.success("Transação excluída com sucesso!");
-          setViewingTransaction(null);
-        },
-        onError: (error) => {
-          toast.error("Erro ao excluir transação: " + error.message);
-        }
+  const handleDelete = (e: React.MouseEvent | React.TouchEvent | null, id: string) => {
+    if (e) e.stopPropagation();
+    const transaction = transactions.find(t => t.id === id);
+
+    // If we can't find it in the current list (e.g. filtered), try allTransactions
+    const targetTransaction = transaction || allTransactions.find(t => t.id === id);
+
+    if (!targetTransaction) return;
+
+    const recurrence = extractRecurrenceData(targetTransaction.description);
+
+    if (recurrence) {
+      // Is Recurring
+      setTransactionToDelete(targetTransaction);
+
+      // Find future transactions
+      // We look for transactions with same base description, same total count, same type, and sequence >= current
+      const future = allTransactions.filter(t => {
+        const r = extractRecurrenceData(t.description);
+        return r &&
+          r.baseDescription === recurrence.baseDescription &&
+          r.total === recurrence.total &&
+          r.current >= recurrence.current &&
+          t.type === targetTransaction.type
       });
+
+      setRecurringGroup(future);
+      setDeleteModalOpen(true);
+    } else {
+      if (window.confirm("Deseja realmente excluir esta transação?")) {
+        deleteTransactionMutation.mutate(id, {
+          onSuccess: () => {
+            toast.success("Transação excluída com sucesso!");
+            setViewingTransaction(null);
+          },
+          onError: (error) => {
+            toast.error("Erro ao excluir transação: " + error.message);
+          }
+        });
+      }
     }
   };
 
@@ -443,13 +522,16 @@ const Transactions: React.FC = () => {
       {/* Cabeçalho e Navegação */}
       <div className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <h1 className="text-white text-2xl md:text-4xl font-black leading-tight tracking-[-0.033em]">Transações</h1>
+          <h1 className={`text-2xl md:text-4xl font-black leading-tight tracking-[-0.033em] transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>Transações</h1>
 
           <div className="flex items-center gap-2">
             {/* Botão Scanner */}
             <label
               htmlFor="receipt-upload"
-              className="flex size-10 md:size-11 cursor-pointer items-center justify-center overflow-hidden rounded-lg bg-white/[0.05] border border-white/[0.1] text-gray-400 hover:bg-white/[0.1] hover:text-teal-400 transition-colors"
+              className={`flex size-10 md:size-11 cursor-pointer items-center justify-center overflow-hidden rounded-lg border transition-all ${theme === 'light'
+                ? 'bg-white border-gray-200 text-slate-500 hover:bg-gray-50 hover:text-teal-600'
+                : 'bg-white/[0.05] border-white/[0.1] text-gray-400 hover:bg-white/[0.1] hover:text-teal-400'
+                }`}
               title="Escanear Comprovante"
             >
               <Icon name="document_scanner" className="text-xl md:text-2xl" />
@@ -458,7 +540,10 @@ const Transactions: React.FC = () => {
             {/* Botão Importar */}
             <button
               onClick={() => setIsImportModalOpen(true)}
-              className="flex size-10 md:size-11 cursor-pointer items-center justify-center overflow-hidden rounded-lg bg-white/[0.05] border border-white/[0.1] text-gray-400 hover:bg-white/[0.1] hover:text-teal-400 transition-colors"
+              className={`flex size-10 md:size-11 cursor-pointer items-center justify-center overflow-hidden rounded-lg border transition-all ${theme === 'light'
+                ? 'bg-white border-gray-200 text-slate-500 hover:bg-gray-50 hover:text-teal-600'
+                : 'bg-white/[0.05] border-white/[0.1] text-gray-400 hover:bg-white/[0.1] hover:text-teal-400'
+                }`}
               title="Importar Extrato (PDF, OFX, XLSX)"
             >
               <Icon name="upload_file" className="text-xl md:text-2xl" />
@@ -476,22 +561,25 @@ const Transactions: React.FC = () => {
         </div>
 
         {/* Navegador de Mês */}
-        <div className="flex items-center justify-between bg-white/[0.02] backdrop-blur-md border border-white/[0.05] p-1 rounded-xl shadow-sm w-full md:max-w-md mx-auto">
-          <button onClick={() => navigateMonth(-1)} className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors">
+        <div className={`flex items-center justify-between backdrop-blur-md border p-1 rounded-xl shadow-sm w-full md:max-w-md mx-auto transition-all ${theme === 'light'
+          ? 'bg-white border-gray-200'
+          : 'bg-white/[0.02] border-white/[0.05]'
+          }`}>
+          <button onClick={() => navigateMonth(-1)} className={`p-2 rounded-lg transition-colors ${theme === 'light' ? 'hover:bg-gray-100 text-slate-500' : 'hover:bg-white/10 text-gray-400 hover:text-white'}`}>
             <Icon name="chevron_left" />
           </button>
           <button
             onClick={() => setIsMonthPickerOpen(true)}
-            className="flex flex-col items-center px-4 py-1 hover:bg-white/5 rounded-lg transition-colors cursor-pointer"
+            className={`flex flex-col items-center px-4 py-1 rounded-lg transition-colors cursor-pointer ${theme === 'light' ? 'hover:bg-gray-50' : 'hover:bg-white/5'}`}
           >
-            <span className="text-sm font-bold text-white capitalize leading-none">
+            <span className={`text-sm font-bold capitalize leading-none transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
               {currentDate.toLocaleDateString('pt-BR', { month: 'long' })}
             </span>
-            <span className="text-[10px] text-gray-500 font-medium leading-none mt-1">
+            <span className={`text-[10px] font-medium leading-none mt-1 transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-500'}`}>
               {currentDate.getFullYear()}
             </span>
           </button>
-          <button onClick={() => navigateMonth(1)} className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors">
+          <button onClick={() => navigateMonth(1)} className={`p-2 rounded-lg transition-colors ${theme === 'light' ? 'hover:bg-gray-100 text-slate-500' : 'hover:bg-white/10 text-gray-400 hover:text-white'}`}>
             <Icon name="chevron_right" />
           </button>
         </div>
@@ -500,24 +588,36 @@ const Transactions: React.FC = () => {
         <div className="grid grid-cols-3 gap-3 md:gap-6">
           <div
             onClick={() => setFilterType(filterType === 'income' ? 'all' : 'income')}
-            className={`p-3 md:p-4 rounded-xl border text-center cursor-pointer transition-all active:scale-95 backdrop-blur-md ${filterType === 'income' ? 'bg-green-500/10 border-green-500/50 shadow-[0_0_15px_-5px_rgba(34,197,94,0.3)]' : 'bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.04]'}`}
+            className={`p-3 md:p-4 rounded-xl border text-center cursor-pointer transition-all active:scale-95 backdrop-blur-md ${filterType === 'income'
+              ? (theme === 'light' ? 'bg-green-50 border-green-200 shadow-sm' : 'bg-green-500/10 border-green-500/50 shadow-[0_0_15px_-5px_rgba(34,197,94,0.3)]')
+              : (theme === 'light' ? 'bg-white border-gray-100 hover:bg-gray-50' : 'bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.04]')
+              }`}
           >
-            <p className="text-xs text-green-400 font-bold uppercase mb-1">Receitas</p>
-            <p className="text-sm md:text-lg font-black text-green-300"><PrivateValue>{formatCurrency(totalIncome)}</PrivateValue></p>
+            <p className={`text-xs font-bold uppercase mb-1 transition-colors ${theme === 'light' ? 'text-green-600' : 'text-green-400'}`}>Receitas</p>
+            <p className={`text-sm md:text-lg font-black transition-colors ${theme === 'light' ? 'text-green-700' : 'text-green-300'}`}><PrivateValue>{formatCurrency(totalIncome)}</PrivateValue></p>
           </div>
           <div
             onClick={() => setFilterType(filterType === 'expense' ? 'all' : 'expense')}
-            className={`p-3 md:p-4 rounded-xl border text-center cursor-pointer transition-all active:scale-95 backdrop-blur-md ${filterType === 'expense' ? 'bg-red-500/10 border-red-500/50 shadow-[0_0_15px_-5px_rgba(239,68,68,0.3)]' : 'bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.04]'}`}
+            className={`p-3 md:p-4 rounded-xl border text-center cursor-pointer transition-all active:scale-95 backdrop-blur-md ${filterType === 'expense'
+              ? (theme === 'light' ? 'bg-red-50 border-red-200 shadow-sm' : 'bg-red-500/10 border-red-500/50 shadow-[0_0_15px_-5px_rgba(239,68,68,0.3)]')
+              : (theme === 'light' ? 'bg-white border-gray-100 hover:bg-gray-50' : 'bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.04]')
+              }`}
           >
-            <p className="text-xs text-red-400 font-bold uppercase mb-1">Despesas</p>
-            <p className="text-sm md:text-lg font-black text-red-300"><PrivateValue>{formatCurrency(totalExpense)}</PrivateValue></p>
+            <p className={`text-xs font-bold uppercase mb-1 transition-colors ${theme === 'light' ? 'text-red-600' : 'text-red-400'}`}>Despesas</p>
+            <p className={`text-sm md:text-lg font-black transition-colors ${theme === 'light' ? 'text-red-700' : 'text-red-300'}`}><PrivateValue>{formatCurrency(totalExpense)}</PrivateValue></p>
           </div>
           <div
             onClick={() => setFilterType('all')}
-            className={`p-3 md:p-4 rounded-xl border text-center cursor-pointer transition-all active:scale-95 backdrop-blur-md ${filterType === 'all' ? 'bg-blue-500/10 border-blue-500/50 shadow-[0_0_15px_-5px_rgba(59,130,246,0.3)]' : 'bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.04]'}`}
+            className={`p-3 md:p-4 rounded-xl border text-center cursor-pointer transition-all active:scale-95 backdrop-blur-md ${filterType === 'all'
+              ? (theme === 'light' ? 'bg-blue-50 border-blue-200 shadow-sm' : 'bg-blue-500/10 border-blue-500/50 shadow-[0_0_15px_-5px_rgba(59,130,246,0.3)]')
+              : (theme === 'light' ? 'bg-white border-gray-100 hover:bg-gray-50' : 'bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.04]')
+              }`}
           >
-            <p className="text-xs text-gray-400 font-bold uppercase mb-1">Balanço</p>
-            <p className={`text-sm md:text-lg font-black ${balance >= 0 ? 'text-blue-300' : 'text-red-300'}`}><PrivateValue>{formatCurrency(balance)}</PrivateValue></p>
+            <p className={`text-xs font-bold uppercase mb-1 transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Balanço</p>
+            <p className={`text-sm md:text-lg font-black transition-colors ${balance >= 0
+              ? (theme === 'light' ? 'text-blue-700' : 'text-blue-300')
+              : (theme === 'light' ? 'text-red-700' : 'text-red-300')
+              }`}><PrivateValue>{formatCurrency(balance)}</PrivateValue></p>
           </div>
         </div>
       </div>
@@ -526,13 +626,16 @@ const Transactions: React.FC = () => {
       <div className="flex flex-col gap-3">
         <div className="flex flex-col sm:flex-row items-center gap-3">
           <div className="relative flex-1 w-full">
-            <Icon name="search" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+            <Icon name="search" className={`absolute left-3 top-1/2 -translate-y-1/2 transition-colors ${theme === 'light' ? 'text-slate-400' : 'text-gray-500'}`} />
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Buscar por descrição..."
-              className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-white/[0.1] bg-white/[0.05] text-white focus:ring-2 focus:ring-teal-500/50 focus:border-transparent outline-none text-sm placeholder-gray-500"
+              className={`w-full pl-10 pr-4 py-2.5 rounded-lg border transition-all outline-none text-sm ${theme === 'light'
+                ? 'bg-white border-gray-200 text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500'
+                : 'bg-white/[0.05] border-white/[0.1] text-white placeholder-gray-500 focus:ring-2 focus:ring-teal-500/50 focus:border-transparent'
+                }`}
             />
           </div>
           <div className="w-full sm:w-auto">
@@ -563,28 +666,40 @@ const Transactions: React.FC = () => {
               className="w-full"
             />
           </div>
-          <div className="flex flex-1 sm:flex-none items-center gap-2 bg-white/[0.05] border border-white/[0.1] rounded-xl px-3 py-2 min-w-[140px] transition-all focus-within:border-teal-500/50 focus-within:bg-white/[0.08]">
-            <span className="text-[10px] font-black text-gray-500 uppercase tracking-wider">De:</span>
+          <div className={`flex flex-1 sm:flex-none items-center gap-2 border rounded-xl px-3 py-2 min-w-[140px] transition-all focus-within:ring-2 focus-within:ring-teal-500/20 focus-within:border-teal-500 ${theme === 'light'
+            ? 'bg-white border-gray-200'
+            : 'bg-white/[0.05] border-white/[0.1]'
+            }`}>
+            <span className={`text-[10px] font-black uppercase tracking-wider transition-colors ${theme === 'light' ? 'text-slate-400' : 'text-gray-500'}`}>De:</span>
             <input
               type="date"
               value={dateRange.start}
               onChange={e => setDateRange(prev => ({ ...prev, start: e.target.value }))}
-              className="bg-transparent text-white text-xs outline-none [&::-webkit-calendar-picker-indicator]:invert cursor-pointer w-full font-medium"
+              className={`bg-transparent text-xs outline-none cursor-pointer w-full font-medium transition-colors ${theme === 'light'
+                ? 'text-slate-900'
+                : 'text-white [&::-webkit-calendar-picker-indicator]:invert'
+                }`}
             />
           </div>
-          <div className="flex flex-1 sm:flex-none items-center gap-2 bg-white/[0.05] border border-white/[0.1] rounded-xl px-3 py-2 min-w-[140px] transition-all focus-within:border-teal-500/50 focus-within:bg-white/[0.08]">
-            <span className="text-[10px] font-black text-gray-500 uppercase tracking-wider">Até:</span>
+          <div className={`flex flex-1 sm:flex-none items-center gap-2 border rounded-xl px-3 py-2 min-w-[140px] transition-all focus-within:ring-2 focus-within:ring-teal-500/20 focus-within:border-teal-500 ${theme === 'light'
+            ? 'bg-white border-gray-200'
+            : 'bg-white/[0.05] border-white/[0.1]'
+            }`}>
+            <span className={`text-[10px] font-black uppercase tracking-wider transition-colors ${theme === 'light' ? 'text-slate-400' : 'text-gray-500'}`}>Até:</span>
             <input
               type="date"
               value={dateRange.end}
               onChange={e => setDateRange(prev => ({ ...prev, end: e.target.value }))}
-              className="bg-transparent text-white text-xs outline-none [&::-webkit-calendar-picker-indicator]:invert cursor-pointer w-full font-medium"
+              className={`bg-transparent text-xs outline-none cursor-pointer w-full font-medium transition-colors ${theme === 'light'
+                ? 'text-slate-900'
+                : 'text-white [&::-webkit-calendar-picker-indicator]:invert'
+                }`}
             />
           </div>
           {(dateRange.start || dateRange.end || selectedCategory !== 'Todas') && (
             <button
               onClick={() => { setDateRange({ start: '', end: '' }); setSelectedCategory('Todas'); }}
-              className="text-xs text-teal-400 hover:text-teal-300 underline"
+              className={`text-xs underline transition-colors ${theme === 'light' ? 'text-teal-600 hover:text-teal-700' : 'text-teal-400 hover:text-teal-300'}`}
             >
               Limpar Filtros
             </button>
@@ -593,7 +708,10 @@ const Transactions: React.FC = () => {
       </div>
 
       {/* Lista de Transações */}
-      <div className="bg-white/[0.02] backdrop-blur-md rounded-xl shadow-sm border border-white/[0.05] overflow-hidden min-h-[300px]">
+      <div className={`backdrop-blur-md rounded-xl shadow-sm border overflow-hidden min-h-[300px] transition-all ${theme === 'light'
+        ? 'bg-white border-gray-100 shadow-slate-200/50'
+        : 'bg-white/[0.02] border-white/[0.05]'
+        }`}>
         {isLoadingTransactions ? (
           <div className="p-4">
             <TransactionListSkeleton />
@@ -603,7 +721,10 @@ const Transactions: React.FC = () => {
             {/* Versão Desktop */}
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left text-sm">
-                <thead className="bg-white/[0.05] text-gray-400 font-medium border-b border-white/[0.05]">
+                <thead className={`font-medium border-b transition-colors ${theme === 'light'
+                  ? 'bg-gray-50 text-slate-500 border-gray-100'
+                  : 'bg-white/[0.05] text-gray-400 border-white/[0.05]'
+                  }`}>
                   <tr>
                     <th className="px-6 py-3">Descrição</th>
                     <th className="px-6 py-3">Categoria</th>
@@ -612,7 +733,7 @@ const Transactions: React.FC = () => {
                     <th className="px-6 py-3 text-center">Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/[0.05]">
+                <tbody className={`divide-y transition-colors ${theme === 'light' ? 'divide-gray-50' : 'divide-white/[0.05]'}`}>
                   {filteredTransactions.length > 0 ? filteredTransactions.map((t) => (
                     <TransactionRow
                       key={t.id}
@@ -621,7 +742,7 @@ const Transactions: React.FC = () => {
                     />
                   )) : (
                     <tr>
-                      <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
+                      <td colSpan={5} className={`px-6 py-12 text-center transition-colors ${theme === 'light' ? 'text-slate-400' : 'text-gray-500'}`}>
                         <div className="flex flex-col items-center justify-center gap-2">
                           <Icon name="event_busy" className="text-3xl opacity-50" />
                           <p>Nenhuma transação encontrada.</p>
@@ -644,7 +765,7 @@ const Transactions: React.FC = () => {
             </div>
 
             {/* Versão Mobile */}
-            <div className="md:hidden flex flex-col divide-y divide-white/[0.05]">
+            <div className={`md:hidden flex flex-col divide-y transition-colors ${theme === 'light' ? 'divide-gray-50' : 'divide-white/[0.05]'}`}>
               {filteredTransactions.length > 0 ? filteredTransactions.map((t) => (
                 <TransactionCard
                   key={t.id}
@@ -655,7 +776,7 @@ const Transactions: React.FC = () => {
                   onDelete={(e) => handleDelete(e, t.id)}
                 />
               )) : (
-                <div className="p-12 text-center text-gray-500">
+                <div className={`p-12 text-center transition-colors ${theme === 'light' ? 'text-slate-400' : 'text-gray-500'}`}>
                   <Icon name="event_busy" className="text-3xl opacity-50 mb-2" />
                   <p>Nenhuma transação encontrada.</p>
                 </div>
@@ -687,15 +808,7 @@ const Transactions: React.FC = () => {
         <DetailsTransactionModal
           transaction={viewingTransaction}
           onClose={() => setViewingTransaction(null)}
-          onDelete={(id) => {
-            deleteTransactionMutation.mutate(id, {
-              onSuccess: () => {
-                toast.success("Transação excluída!");
-                setViewingTransaction(null);
-              },
-              onError: (error) => toast.error("Erro ao excluir: " + error.message)
-            });
-          }}
+          onDelete={(id) => handleDelete(null, id)}
           onDuplicate={(id) => { handleDuplicate({ stopPropagation: () => { } } as any, id); setViewingTransaction(null); }}
         />
       )}
@@ -715,6 +828,63 @@ const Transactions: React.FC = () => {
           onClose={() => setIsMonthPickerOpen(false)}
         />
       )}
+
+      {deleteModalOpen && (
+        <Modal
+          isOpen={deleteModalOpen}
+          onClose={() => setDeleteModalOpen(false)}
+          title="Excluir Transação Recorrente"
+        >
+          <div className="space-y-4">
+            <p className={`text-sm ${theme === 'light' ? 'text-slate-600' : 'text-gray-400'}`}>
+              Esta é uma transação recorrente. Como deseja prosseguir com a exclusão?
+            </p>
+            <div className="grid grid-cols-1 gap-3">
+              <button
+                onClick={() => executeRecurringDelete('single')}
+                className={`flex items-center gap-3 p-4 rounded-xl border transition-all hover:scale-[1.02] active:scale-[0.98] ${theme === 'light'
+                  ? 'bg-white border-gray-200 hover:bg-gray-50 text-slate-900'
+                  : 'bg-white/5 border-white/10 hover:bg-white/10 text-white'
+                  }`}
+              >
+                <div className="size-10 rounded-full bg-blue-500/20 text-blue-500 flex items-center justify-center">
+                  <Icon name="event" />
+                </div>
+                <div className="text-left">
+                  <p className="font-bold">Apagar apenas esta</p>
+                  <p className="text-xs opacity-60">Exclui somente a transação selecionada.</p>
+                </div>
+              </button>
+
+              <button
+                onClick={() => executeRecurringDelete('future')}
+                className={`flex items-center gap-3 p-4 rounded-xl border transition-all hover:scale-[1.02] active:scale-[0.98] ${theme === 'light'
+                  ? 'bg-red-50 border-red-100 hover:bg-red-100 text-red-700'
+                  : 'bg-red-500/10 border-red-500/20 hover:bg-red-500/20 text-red-400'
+                  }`}
+              >
+                <div className="size-10 rounded-full bg-red-500/20 text-red-500 flex items-center justify-center">
+                  <Icon name="event_repeat" />
+                </div>
+                <div className="text-left">
+                  <p className="font-bold">Apagar esta e as próximas</p>
+                  <p className="text-xs opacity-60">Exclui esta e todas as {recurringGroup.length} transações futuras da série.</p>
+                </div>
+              </button>
+            </div>
+
+            <div className="flex justify-end mt-2">
+              <button
+                onClick={() => setDeleteModalOpen(false)}
+                className={`px-4 py-2 text-sm font-medium transition-colors ${theme === 'light' ? 'text-slate-500 hover:text-slate-700' : 'text-gray-400 hover:text-white'
+                  }`}
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 };
@@ -731,14 +901,13 @@ const DetailsTransactionModal: React.FC<{
   onDelete: (id: string) => void;
   onDuplicate?: (id: string) => void;
 }> = ({ transaction, onClose, onDelete, onDuplicate }) => {
+  const { theme } = useTheme();
   const isExpense = transaction.type === TransactionType.EXPENSE;
   const colorClass = isExpense ? 'text-red-400' : 'text-green-400';
   const bgClass = isExpense ? 'bg-red-500/20' : 'bg-green-500/20';
 
   const handleDelete = () => {
-    if (window.confirm('Deseja realmente excluir esta transação?')) {
-      onDelete(transaction.id);
-    }
+    onDelete(transaction.id);
   };
 
   const handleDuplicate = () => {
@@ -764,41 +933,63 @@ const DetailsTransactionModal: React.FC<{
       noPadding={true}
     >
       {/* Custom Header inside Standard Modal */}
-      <div className={`p-6 bg-gradient-to-b ${isExpense ? 'from-red-500/10' : 'from-green-500/10'} to-transparent border-b border-white/[0.08] relative`}>
+      <div className={`p-6 border-b relative transition-colors ${isExpense
+        ? (theme === 'light' ? 'bg-red-50 border-red-100' : 'bg-red-500/10 border-white/[0.08]')
+        : (theme === 'light' ? 'bg-green-50 border-green-100' : 'bg-green-500/10 border-white/[0.08]')
+        }`}>
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+          className={`absolute top-4 right-4 p-2 rounded-lg transition-colors ${theme === 'light'
+            ? 'text-slate-400 hover:text-slate-600 hover:bg-gray-200'
+            : 'text-gray-400 hover:text-white hover:bg-white/10'
+            }`}
         >
           <Icon name="close" className="text-xl" />
         </button>
         <div className="flex flex-col items-center gap-4">
-          <div className={`size-16 rounded-full ${bgClass} flex items-center justify-center shadow-lg ring-1 ring-white/10`}>
-            <Icon name={isExpense ? 'shopping_cart' : 'trending_up'} className={`text-3xl ${colorClass}`} />
+          <div className={`size-16 rounded-full flex items-center justify-center shadow-lg ring-1 transition-all ${isExpense
+            ? (theme === 'light' ? 'bg-white text-red-500 ring-red-100' : 'bg-red-500/20 text-red-400 ring-white/10')
+            : (theme === 'light' ? 'bg-white text-green-500 ring-green-100' : 'bg-green-500/20 text-green-400 ring-white/10')
+            }`}>
+            <Icon name={isExpense ? 'shopping_cart' : 'trending_up'} className="text-3xl" />
           </div>
-          <div className="text-center">
-            <h2 className={`text-4xl font-bold ${colorClass} tracking-tight`}>
-              <PrivateValue>{isExpense ? '-' : '+'} {formatCurrency(transaction.amount)}</PrivateValue>
-            </h2>
-            <p className="text-gray-400 text-sm mt-1 font-medium">{transaction.description}</p>
-          </div>
-
-          <div className="flex gap-2">
-            {transaction.isPaid && (
-              <span className="px-3 py-1 rounded-full bg-green-500/10 text-green-400 text-xs font-bold border border-green-500/20">
-                Efetivada
+          <div className="flex gap-3 w-full">
+            <div className={`flex-1 flex flex-col items-center justify-center p-4 rounded-xl border transition-all ${theme === 'light'
+              ? 'bg-white border-gray-100 shadow-sm'
+              : 'bg-white/[0.05] border-white/[0.1]'
+              }`}>
+              <span className={`text-[10px] mb-1 uppercase font-bold tracking-wider transition-colors ${theme === 'light' ? 'text-slate-400' : 'text-gray-400'}`}>Valor Total</span>
+              <span className={`text-2xl font-black transition-colors ${isExpense ? (theme === 'light' ? 'text-red-600' : 'text-red-400') : (theme === 'light' ? 'text-teal-600' : 'text-teal-400')}`}>
+                <PrivateValue>{isExpense ? '-' : '+'} {formatCurrency(transaction.amount)}</PrivateValue>
               </span>
-            )}
-            {transaction.installmentNumber && transaction.installments && (
-              <span className="px-3 py-1 rounded-full bg-white/5 text-gray-300 text-xs font-medium border border-white/10">
-                Parcela {transaction.installmentNumber}/{transaction.installments}
+            </div>
+            <div className={`flex-1 flex flex-col items-center justify-center p-4 rounded-xl border transition-all ${theme === 'light'
+              ? 'bg-white border-gray-100 shadow-sm'
+              : 'bg-white/[0.05] border-white/[0.1]'
+              }`}>
+              <span className={`text-[10px] mb-1 uppercase font-bold tracking-wider transition-colors ${theme === 'light' ? 'text-slate-400' : 'text-gray-400'}`}>Status</span>
+              <span className={`text-sm font-bold flex items-center gap-1 transition-colors ${transaction.isPaid
+                ? (theme === 'light' ? 'text-green-600' : 'text-green-400')
+                : (theme === 'light' ? 'text-yellow-600' : 'text-yellow-400')
+                }`}>
+                <Icon name={transaction.isPaid ? "check_circle" : "schedule"} className="text-base" />
+                {transaction.isPaid ? 'Efetivada' : 'Pendente'}
               </span>
-            )}
+            </div>
           </div>
+          {transaction.installmentNumber && transaction.installments && (
+            <span className={`px-3 py-1 rounded-full text-[10px] font-medium border transition-colors ${theme === 'light'
+              ? 'bg-gray-100 text-slate-600 border-gray-200'
+              : 'bg-white/5 text-gray-300 border-white/10'
+              }`}>
+              Parcela {transaction.installmentNumber}/{transaction.installments}
+            </span>
+          )}
         </div>
       </div>
 
       {/* Details */}
-      <div className="p-5 space-y-5">
+      <div className={`p-5 space-y-5 transition-colors ${theme === 'light' ? 'bg-white' : ''}`}>
         <DetailRow icon="category" label="Categoria" value={transaction.category} />
         <DetailRow icon="calendar_today" label="Data" value={formatDate(transaction.date)} />
         <DetailRow
@@ -814,130 +1005,55 @@ const DetailsTransactionModal: React.FC<{
       </div>
 
       {/* Action Buttons */}
-      <div className="p-4 border-t border-white/[0.08] grid grid-cols-3 gap-3 bg-white/[0.02]">
+      <div className={`p-4 border-t grid grid-cols-3 gap-3 transition-colors ${theme === 'light' ? 'bg-gray-50 border-gray-100' : 'bg-white/[0.02] border-white/[0.08]'}`}>
         <button
           onClick={handleEdit}
-          className="flex flex-col items-center justify-center gap-1 h-14 rounded-xl bg-teal-500/5 text-teal-400 font-semibold hover:bg-teal-500/10 border border-teal-500/10 transition-all active:scale-95 group"
+          className={`flex flex-col items-center justify-center gap-1 h-14 rounded-xl font-semibold border transition-all active:scale-95 group ${theme === 'light'
+            ? 'bg-white text-teal-600 border-gray-200 hover:border-teal-200 hover:bg-teal-50'
+            : 'bg-teal-500/5 text-teal-400 border-teal-500/10 hover:bg-teal-500/10'
+            }`}
         >
           <Icon name="edit" className="text-xl group-hover:scale-110 transition-transform" />
-          <span className="text-xs">Editar</span>
+          <span className="text-[10px]">Editar</span>
         </button>
         <button
           onClick={handleDuplicate}
-          className="flex flex-col items-center justify-center gap-1 h-14 rounded-xl bg-blue-500/5 text-blue-400 font-semibold hover:bg-blue-500/10 border border-blue-500/10 transition-all active:scale-95 group"
+          className={`flex flex-col items-center justify-center gap-1 h-14 rounded-xl font-semibold border transition-all active:scale-95 group ${theme === 'light'
+            ? 'bg-white text-blue-600 border-gray-200 hover:border-blue-200 hover:bg-blue-50'
+            : 'bg-blue-500/5 text-blue-400 border-blue-500/10 hover:bg-blue-500/10'
+            }`}
         >
           <Icon name="content_copy" className="text-xl group-hover:scale-110 transition-transform" />
-          <span className="text-xs">Copiar</span>
+          <span className="text-[10px]">Duplicar</span>
         </button>
         <button
           onClick={handleDelete}
-          className="flex flex-col items-center justify-center gap-1 h-14 rounded-xl bg-red-500/5 text-red-400 font-semibold hover:bg-red-500/10 border border-red-500/10 transition-all active:scale-95 group"
+          className={`flex flex-col items-center justify-center gap-1 h-14 rounded-xl font-semibold border transition-all active:scale-95 group ${theme === 'light'
+            ? 'bg-white text-red-600 border-gray-200 hover:border-red-200 hover:bg-red-50'
+            : 'bg-red-500/5 text-red-400 border-red-500/10 hover:bg-red-500/10'
+            }`}
         >
           <Icon name="delete" className="text-xl group-hover:scale-110 transition-transform" />
-          <span className="text-xs">Excluir</span>
+          <span className="text-[10px]">Excluir</span>
         </button>
       </div>
-    </Modal>
+    </Modal >
   );
 };
 
-const DetailRow = ({ icon, label, value }: { icon: string, label: string, value: string }) => (
-  <div className="flex items-start gap-3">
-    <div className="mt-0.5 text-gray-400"><Icon name={icon} /></div>
-    <div>
-      <p className="text-xs text-gray-400 uppercase font-bold tracking-wide">{label}</p>
-      <p className="text-base text-white font-medium">{value}</p>
-    </div>
-  </div>
-);
-
-// --- Month/Year Picker Component ---
-const MonthYearPicker: React.FC<{
-  currentDate: Date;
-  onSelect: (date: Date) => void;
-  onClose: () => void;
-}> = ({ currentDate, onSelect, onClose }) => {
-  const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
-  const pickerRef = useRef<HTMLDivElement>(null);
-
-  const months = [
-    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
-  ];
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) {
-        onClose();
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [onClose]);
-
-  const handleMonthSelect = (monthIndex: number) => {
-    const newDate = new Date(selectedYear, monthIndex, 1);
-    onSelect(newDate);
-    onClose();
-  };
-
-  const isCurrentMonth = (monthIndex: number) => {
-    return currentDate.getMonth() === monthIndex && currentDate.getFullYear() === selectedYear;
-  };
-
+const DetailRow = ({ icon, label, value }: { icon: string, label: string, value: string }) => {
+  const { theme } = useTheme();
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-      <div
-        ref={pickerRef}
-        className="bg-[#0f1216]/90 backdrop-blur-xl border border-white/[0.08] rounded-2xl shadow-2xl w-full max-w-sm p-6 animate-scale-up ring-1 ring-white/5"
-      >
-        {/* Year Selector */}
-        <div className="flex items-center justify-between mb-6">
-          <button
-            onClick={() => setSelectedYear(selectedYear - 1)}
-            className="p-2 hover:bg-white/[0.05] rounded-lg transition-colors"
-          >
-            <Icon name="chevron_left" className="text-gray-300" />
-          </button>
-          <h3 className="text-xl font-bold text-white">{selectedYear}</h3>
-          <button
-            onClick={() => setSelectedYear(selectedYear + 1)}
-            className="p-2 hover:bg-white/[0.05] rounded-lg transition-colors"
-          >
-            <Icon name="chevron_right" className="text-gray-300" />
-          </button>
-        </div>
-
-        {/* Month Grid */}
-        <div className="grid grid-cols-3 gap-2">
-          {months.map((month, index) => (
-            <button
-              key={month}
-              onClick={() => handleMonthSelect(index)}
-              className={`
-                p-3 rounded-xl text-sm font-semibold transition-all
-                ${isCurrentMonth(index)
-                  ? 'bg-teal-500 text-white shadow-lg shadow-teal-500/30'
-                  : 'bg-white/[0.05] text-gray-300 hover:bg-white/[0.1]'
-                }
-              `}
-            >
-              {month.substring(0, 3)}
-            </button>
-          ))}
-        </div>
-
-        {/* Close Button */}
-        <button
-          onClick={onClose}
-          className="mt-6 w-full py-3 rounded-xl bg-white/[0.05] text-gray-300 font-semibold hover:bg-white/[0.1] transition-colors"
-        >
-          Fechar
-        </button>
+    <div className="flex items-start gap-3">
+      <div className={`mt-0.5 transition-colors ${theme === 'light' ? 'text-slate-400' : 'text-gray-400'}`}><Icon name={icon} /></div>
+      <div>
+        <p className={`text-[10px] uppercase font-bold tracking-wide transition-colors ${theme === 'light' ? 'text-slate-400' : 'text-gray-400'}`}>{label}</p>
+        <p className={`text-base font-medium transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>{value}</p>
       </div>
     </div>
   );
 };
+
+
 
 export default Transactions;

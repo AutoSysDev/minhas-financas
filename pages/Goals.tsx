@@ -3,6 +3,7 @@ import { Icon } from '../components/Icon';
 import { PrivateValue } from '../components/PrivateValue';
 import { Modal } from '../components/Modal';
 import { useFinance } from '../context/FinanceContext';
+import { useTheme } from '../context/ThemeContext';
 import { useGoalTransactions, useCreateGoalTransaction } from '../hooks/useFinanceQueries';
 import { formatCurrency } from '../utils/helpers';
 import { GOAL_ICONS } from '../constants';
@@ -11,6 +12,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 const Goals: React.FC = () => {
   const { goals, addGoal, updateGoal, deleteGoal } = useFinance();
+  const { theme } = useTheme();
   const [isNewGoalModalOpen, setIsNewGoalModalOpen] = useState(false);
   const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null);
 
@@ -18,8 +20,8 @@ const Goals: React.FC = () => {
     <div className="flex flex-col gap-6 animate-fade-in pb-20 md:pb-0 relative">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-white text-2xl md:text-3xl font-black leading-tight tracking-[-0.033em]">Metas</h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1 text-sm">Acompanhe seus sonhos financeiros.</p>
+          <h1 className={`text-2xl md:text-3xl font-black leading-tight tracking-[-0.033em] transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>Metas</h1>
+          <p className={`mt-1 text-sm transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Acompanhe seus sonhos financeiros.</p>
         </div>
         <button
           onClick={() => setIsNewGoalModalOpen(true)}
@@ -33,11 +35,11 @@ const Goals: React.FC = () => {
 
       {goals.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center animate-fade-in">
-          <div className="w-24 h-24 rounded-full bg-white/[0.05] flex items-center justify-center mb-6">
-            <Icon name="savings" className="text-4xl text-gray-600" />
+          <div className={`w-24 h-24 rounded-full flex items-center justify-center mb-6 transition-colors ${theme === 'light' ? 'bg-gray-100' : 'bg-white/[0.05]'}`}>
+            <Icon name="savings" className={`text-4xl transition-colors ${theme === 'light' ? 'text-gray-400' : 'text-gray-600'}`} />
           </div>
-          <h2 className="text-xl font-bold text-white mb-2">Nenhuma meta encontrada</h2>
-          <p className="text-gray-400 max-w-md mx-auto mb-8">Defina objetivos financeiros para realizar seus sonhos. Acompanhe seu progresso e mantenha o foco.</p>
+          <h2 className={`text-xl font-bold mb-2 transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>Nenhuma meta encontrada</h2>
+          <p className={`max-w-md mx-auto mb-8 transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Defina objetivos financeiros para realizar seus sonhos. Acompanhe seu progresso e mantenha o foco.</p>
           <button
             onClick={() => setIsNewGoalModalOpen(true)}
             className="px-6 py-3 rounded-xl bg-teal-500 text-white font-bold hover:bg-teal-600 transition-all shadow-[0_0_20px_-5px_rgba(45,212,191,0.3)]"
@@ -53,32 +55,37 @@ const Goals: React.FC = () => {
               <div
                 key={goal.id}
                 onClick={() => setSelectedGoal(goal)}
-                className="bg-white/[0.02] backdrop-blur-md rounded-xl shadow-sm border border-white/[0.05] p-5 flex flex-col gap-4 transition-all hover:bg-white/[0.04] hover:border-teal-500/30 duration-200 cursor-pointer group"
+                className={`rounded-xl shadow-sm border p-5 flex flex-col gap-4 transition-all duration-200 cursor-pointer group ${theme === 'light'
+                    ? 'bg-white border-gray-200 hover:bg-gray-50 hover:border-teal-500/30'
+                    : 'bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.04] hover:border-teal-500/30'
+                  }`}
               >
                 <div className="flex items-start gap-4">
-                  <div className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-white/[0.05] text-white text-2xl`}>
+                  <div className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl transition-colors ${theme === 'light' ? 'bg-gray-100 text-slate-700' : 'bg-white/[0.05] text-white'
+                    } text-2xl`}>
                     <Icon name={goal.icon} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex justify-between items-start">
-                      <h3 className="text-base font-bold text-white truncate group-hover:text-teal-400 transition-colors">{goal.name}</h3>
+                      <h3 className={`text-base font-bold truncate group-hover:text-teal-400 transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'
+                        }`}>{goal.name}</h3>
                       <span className={`text-xs font-bold px-2 py-0.5 rounded-full bg-teal-500/20 text-teal-400`}>
                         {percentage.toFixed(0)}%
                       </span>
                     </div>
-                    <p className="text-xs text-gray-400 mt-0.5">Previsão: {goal.deadline}</p>
+                    <p className={`text-xs mt-0.5 transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Previsão: {goal.deadline}</p>
                   </div>
                 </div>
                 <div className="space-y-2">
                   <div className="flex justify-between items-baseline">
-                    <p className="text-2xl font-bold text-white">
+                    <p className={`text-2xl font-bold transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
                       <PrivateValue>{formatCurrency(goal.currentAmount)}</PrivateValue>
                     </p>
-                    <p className="text-xs text-gray-400">
+                    <p className={`text-xs transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>
                       de <PrivateValue>{formatCurrency(goal.targetAmount)}</PrivateValue>
                     </p>
                   </div>
-                  <div className="w-full rounded-full bg-white/[0.05] h-2">
+                  <div className={`w-full rounded-full h-2 transition-colors ${theme === 'light' ? 'bg-gray-100' : 'bg-white/[0.05]'}`}>
                     <div className={`h-2 rounded-full bg-teal-500 transition-all duration-700 shadow-[0_0_10px_rgba(45,212,191,0.5)]`} style={{ width: `${percentage}%` }}></div>
                   </div>
                 </div>
@@ -105,6 +112,7 @@ const Goals: React.FC = () => {
 };
 
 const NewGoalModal: React.FC<{ onClose: () => void; onSave: (g: any) => void }> = ({ onClose, onSave }) => {
+  const { theme } = useTheme();
   const [name, setName] = useState('');
   const [targetAmount, setTargetAmount] = useState('');
   const [currentAmount, setCurrentAmount] = useState('');
@@ -129,36 +137,81 @@ const NewGoalModal: React.FC<{ onClose: () => void; onSave: (g: any) => void }> 
     <Modal isOpen={true} onClose={onClose} title="Nova Meta Financeira">
       <form onSubmit={handleSubmit} className="space-y-5">
         <div>
-          <label className="block text-sm font-bold text-gray-300 mb-2">Nome do Objetivo</label>
-          <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Ex: Viagem, Carro Novo" required className="w-full px-4 py-3 rounded-xl border border-white/[0.1] bg-white/[0.05] text-white focus:ring-2 focus:ring-teal-500/50 focus:border-transparent outline-none transition-all placeholder-gray-500" />
+          <label className={`block text-sm font-bold mb-2 transition-colors ${theme === 'light' ? 'text-slate-700' : 'text-gray-300'}`}>Nome do Objetivo</label>
+          <input
+            type="text"
+            value={name}
+            onChange={e => setName(e.target.value)}
+            placeholder="Ex: Viagem, Carro Novo"
+            required
+            className={`w-full px-4 py-3 rounded-xl border outline-none transition-all placeholder-gray-500 ${theme === 'light'
+                ? 'bg-white border-gray-200 text-slate-900 focus:ring-2 focus:ring-teal-500/20'
+                : 'bg-white/[0.05] border-white/[0.1] text-white focus:ring-2 focus:ring-teal-500/50'
+              }`}
+          />
         </div>
         <div>
-          <label className="block text-sm font-bold text-gray-300 mb-2">Valor Alvo</label>
+          <label className={`block text-sm font-bold mb-2 transition-colors ${theme === 'light' ? 'text-slate-700' : 'text-gray-300'}`}>Valor Alvo</label>
           <div className="relative">
             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">R$</span>
-            <input type="number" step="0.01" value={targetAmount} onChange={e => setTargetAmount(e.target.value)} placeholder="0,00" required className="w-full pl-12 pr-4 py-3 rounded-xl border border-white/[0.1] bg-white/[0.05] text-xl font-bold text-white focus:ring-2 focus:ring-teal-500/50 focus:border-transparent outline-none transition-all placeholder-gray-500" />
+            <input
+              type="number"
+              step="0.01"
+              value={targetAmount}
+              onChange={e => setTargetAmount(e.target.value)}
+              placeholder="0,00"
+              required
+              className={`w-full pl-12 pr-4 py-3 rounded-xl border text-xl font-bold outline-none transition-all placeholder-gray-500 ${theme === 'light'
+                  ? 'bg-white border-gray-200 text-slate-900 focus:ring-2 focus:ring-teal-500/20'
+                  : 'bg-white/[0.05] border-white/[0.1] text-white focus:ring-2 focus:ring-teal-500/50'
+                }`}
+            />
           </div>
         </div>
         <div>
-          <label className="block text-sm font-bold text-gray-300 mb-2">Já guardado (Opcional)</label>
+          <label className={`block text-sm font-bold mb-2 transition-colors ${theme === 'light' ? 'text-slate-700' : 'text-gray-300'}`}>Já guardado (Opcional)</label>
           <div className="relative">
             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">R$</span>
-            <input type="number" step="0.01" value={currentAmount} onChange={e => setCurrentAmount(e.target.value)} placeholder="0,00" className="w-full pl-12 pr-4 py-3 rounded-xl border border-white/[0.1] bg-white/[0.05] text-white focus:ring-2 focus:ring-teal-500/50 focus:border-transparent outline-none transition-all placeholder-gray-500" />
+            <input
+              type="number"
+              step="0.01"
+              value={currentAmount}
+              onChange={e => setCurrentAmount(e.target.value)}
+              placeholder="0,00"
+              className={`w-full pl-12 pr-4 py-3 rounded-xl border outline-none transition-all placeholder-gray-500 ${theme === 'light'
+                  ? 'bg-white border-gray-200 text-slate-900 focus:ring-2 focus:ring-teal-500/20'
+                  : 'bg-white/[0.05] border-white/[0.1] text-white focus:ring-2 focus:ring-teal-500/50'
+                }`}
+            />
           </div>
         </div>
         <div>
-          <label className="block text-sm font-bold text-gray-300 mb-2">Previsão / Data Alvo</label>
-          <input type="date" value={deadline} onChange={e => setDeadline(e.target.value)} required className="w-full px-4 py-3 rounded-xl border border-white/[0.1] bg-white/[0.05] text-white focus:ring-2 focus:ring-teal-500/50 focus:border-transparent outline-none transition-all" />
+          <label className={`block text-sm font-bold mb-2 transition-colors ${theme === 'light' ? 'text-slate-700' : 'text-gray-300'}`}>Previsão / Data Alvo</label>
+          <input
+            type="date"
+            value={deadline}
+            onChange={e => setDeadline(e.target.value)}
+            required
+            className={`w-full px-4 py-3 rounded-xl border outline-none transition-all ${theme === 'light'
+                ? 'bg-white border-gray-200 text-slate-900 focus:ring-2 focus:ring-teal-500/20'
+                : 'bg-white/[0.05] border-white/[0.1] text-white focus:ring-2 focus:ring-teal-500/50'
+              }`}
+          />
         </div>
         <div>
-          <label className="block text-sm font-bold text-gray-300 mb-3">Ícone</label>
+          <label className={`block text-sm font-bold mb-3 transition-colors ${theme === 'light' ? 'text-slate-700' : 'text-gray-300'}`}>Ícone</label>
           <div className="grid grid-cols-6 gap-2">
             {GOAL_ICONS.map(item => (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => setSelectedIconId(item.id)}
-                className={`p-2 rounded-lg border transition-all flex flex-col items-center justify-center gap-1 h-16 ${selectedIconId === item.id ? 'bg-teal-500 text-white border-teal-500 shadow-[0_0_10px_rgba(45,212,191,0.5)]' : 'bg-white/[0.05] text-gray-400 border-transparent hover:bg-white/[0.1]'}`}
+                className={`p-2 rounded-lg border transition-all flex flex-col items-center justify-center gap-1 h-16 ${selectedIconId === item.id
+                    ? 'bg-teal-500 text-white border-teal-500 shadow-[0_0_10px_rgba(45,212,191,0.5)]'
+                    : (theme === 'light'
+                      ? 'bg-gray-100 text-slate-400 border-transparent hover:bg-gray-200'
+                      : 'bg-white/[0.05] text-gray-400 border-transparent hover:bg-white/[0.1]')
+                  }`}
                 title={item.name}
               >
                 <Icon name={item.icon} />
@@ -177,6 +230,7 @@ const NewGoalModal: React.FC<{ onClose: () => void; onSave: (g: any) => void }> 
 
 const GoalDetailModal: React.FC<{ goal: Goal; onClose: () => void; onUpdate: (id: string, data: Partial<Goal>) => void; onDelete: (id: string) => void }> = ({ goal, onClose, onUpdate, onDelete }) => {
   const { accounts, addTransaction } = useFinance();
+  const { theme } = useTheme();
   const { data: transactions, isLoading: isLoadingHistory } = useGoalTransactions(goal.id);
   const createTransactionMutation = useCreateGoalTransaction();
 
@@ -262,8 +316,6 @@ const GoalDetailModal: React.FC<{ goal: Goal; onClose: () => void; onUpdate: (id
     setDepositAmount('');
     setUseAccountBalance(false);
     setSelectedAccountId('');
-    // Don't close modal to show updated status/history
-    // onClose(); 
   };
 
   const handleDelete = async () => {
@@ -281,7 +333,7 @@ const GoalDetailModal: React.FC<{ goal: Goal; onClose: () => void; onUpdate: (id
             <div className={`p-4 rounded-full ${depositType === 'deposit' ? 'bg-teal-500/10 text-teal-400' : 'bg-orange-500/10 text-orange-400'} mb-2`}>
               <Icon name={depositType === 'deposit' ? 'add' : 'remove'} className="text-3xl" />
             </div>
-            <p className="text-gray-400 text-sm">
+            <p className={`text-sm transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>
               {depositType === 'deposit'
                 ? `Quanto você quer guardar para "${goal.name}"?`
                 : `Quanto você vai retirar de "${goal.name}"?`}
@@ -289,7 +341,7 @@ const GoalDetailModal: React.FC<{ goal: Goal; onClose: () => void; onUpdate: (id
           </div>
 
           <div>
-            <label className="block text-sm font-bold text-gray-300 mb-2">Valor</label>
+            <label className={`block text-sm font-bold mb-2 transition-colors ${theme === 'light' ? 'text-slate-700' : 'text-gray-300'}`}>Valor</label>
             <div className="relative">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">R$</span>
               <input
@@ -300,22 +352,26 @@ const GoalDetailModal: React.FC<{ goal: Goal; onClose: () => void; onUpdate: (id
                 autoFocus
                 placeholder="0,00"
                 required
-                className="w-full pl-12 pr-4 py-4 rounded-xl border border-white/[0.1] bg-white/[0.05] text-2xl font-bold text-white focus:ring-2 focus:ring-teal-500/50 focus:border-transparent outline-none transition-all placeholder-gray-600"
+                className={`w-full pl-12 pr-4 py-4 rounded-xl border text-2xl font-bold outline-none transition-all placeholder-gray-600 ${theme === 'light'
+                    ? 'bg-white border-gray-200 text-slate-900 focus:ring-2 focus:ring-teal-500/20'
+                    : 'bg-white/[0.05] border-white/[0.1] text-white focus:ring-2 focus:ring-teal-500/50'
+                  }`}
               />
             </div>
           </div>
 
           {/* Account Linking Option */}
-          <div className="bg-white/[0.03] rounded-xl p-4 border border-white/[0.05]">
+          <div className={`rounded-xl p-4 border transition-colors ${theme === 'light' ? 'bg-gray-50 border-gray-100' : 'bg-white/[0.03] border-white/[0.05]'}`}>
             <div className="flex items-center gap-3 mb-3">
               <input
                 type="checkbox"
                 id="useAccount"
                 checked={useAccountBalance}
                 onChange={e => setUseAccountBalance(e.target.checked)}
-                className="w-5 h-5 rounded border-gray-600 bg-gray-700 text-teal-500 focus:ring-teal-500/50"
+                className={`w-5 h-5 rounded transition-colors ${theme === 'light' ? 'border-gray-300 bg-white' : 'border-gray-600 bg-gray-700'
+                  } text-teal-500 focus:ring-teal-500/50`}
               />
-              <label htmlFor="useAccount" className="text-sm text-gray-300 cursor-pointer select-none">
+              <label htmlFor="useAccount" className={`text-sm cursor-pointer select-none transition-colors ${theme === 'light' ? 'text-slate-700' : 'text-gray-300'}`}>
                 {depositType === 'deposit'
                   ? 'Descontar de uma conta bancária'
                   : 'Depositar em uma conta bancária'}
@@ -328,11 +384,14 @@ const GoalDetailModal: React.FC<{ goal: Goal; onClose: () => void; onUpdate: (id
                   value={selectedAccountId}
                   onChange={e => setSelectedAccountId(e.target.value)}
                   required={useAccountBalance}
-                  className="w-full px-4 py-3 rounded-xl border border-white/[0.1] bg-black/20 text-white focus:ring-2 focus:ring-teal-500/50 outline-none [&>option]:bg-[#1a1d21]"
+                  className={`w-full px-4 py-3 rounded-xl border outline-none transition-all ${theme === 'light'
+                      ? 'bg-white border-gray-200 text-slate-900 focus:ring-2 focus:ring-teal-500/20'
+                      : 'bg-black/20 text-white border-white/[0.1] focus:ring-2 focus:ring-teal-500/50 [&>option]:bg-[#1a1d21]'
+                    }`}
                 >
                   <option value="">Selecione a conta...</option>
                   {accounts.map(acc => (
-                    <option key={acc.id} value={acc.id}>{acc.name} (<PrivateValue>{formatCurrency(acc.balance)}</PrivateValue>)</option>
+                    <option key={acc.id} value={acc.id}>{acc.name} ({formatCurrency(acc.balance)})</option>
                   ))}
                 </select>
               </div>
@@ -340,7 +399,8 @@ const GoalDetailModal: React.FC<{ goal: Goal; onClose: () => void; onUpdate: (id
           </div>
 
           <div className="flex gap-3 pt-2">
-            <button type="button" onClick={() => setIsDepositing(false)} className="flex-1 h-12 rounded-xl font-bold text-gray-300 bg-white/[0.05] hover:bg-white/[0.1] transition-all">
+            <button type="button" onClick={() => setIsDepositing(false)} className={`flex-1 h-12 rounded-xl font-bold transition-all ${theme === 'light' ? 'bg-gray-100 text-slate-600 hover:bg-gray-200' : 'bg-white/[0.05] text-gray-300 hover:bg-white/[0.1]'
+              }`}>
               Cancelar
             </button>
             <button type="submit" className={`flex-1 h-12 rounded-xl font-bold text-white shadow-lg transition-all active:scale-95 ${depositType === 'deposit' ? 'bg-teal-500 hover:bg-teal-600 shadow-teal-500/20' : 'bg-orange-500 hover:bg-orange-600 shadow-orange-500/20'}`}>
@@ -357,36 +417,78 @@ const GoalDetailModal: React.FC<{ goal: Goal; onClose: () => void; onUpdate: (id
       <Modal isOpen={true} onClose={() => setIsEditing(false)} title="Editar Meta">
         <form onSubmit={handleSave} className="space-y-5">
           <div>
-            <label className="block text-sm font-bold text-gray-300 mb-2">Nome do Objetivo</label>
-            <input type="text" value={name} onChange={e => setName(e.target.value)} required className="w-full px-4 py-3 rounded-xl border border-white/[0.1] bg-white/[0.05] text-white focus:ring-2 focus:ring-teal-500/50 focus:border-transparent outline-none transition-all placeholder-gray-500" />
+            <label className={`block text-sm font-bold mb-2 transition-colors ${theme === 'light' ? 'text-slate-700' : 'text-gray-300'}`}>Nome do Objetivo</label>
+            <input
+              type="text"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              required
+              className={`w-full px-4 py-3 rounded-xl border outline-none transition-all placeholder-gray-500 ${theme === 'light'
+                  ? 'bg-white border-gray-200 text-slate-900 focus:ring-2 focus:ring-teal-500/20'
+                  : 'bg-white/[0.05] border-white/[0.1] text-white focus:ring-2 focus:ring-teal-500/50'
+                }`}
+            />
           </div>
           <div>
-            <label className="block text-sm font-bold text-gray-300 mb-2">Valor Alvo</label>
+            <label className={`block text-sm font-bold mb-2 transition-colors ${theme === 'light' ? 'text-slate-700' : 'text-gray-300'}`}>Valor Alvo</label>
             <div className="relative">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">R$</span>
-              <input type="number" step="0.01" value={targetAmount} onChange={e => setTargetAmount(e.target.value)} required className="w-full pl-12 pr-4 py-3 rounded-xl border border-white/[0.1] bg-white/[0.05] text-xl font-bold text-white focus:ring-2 focus:ring-teal-500/50 focus:border-transparent outline-none transition-all placeholder-gray-500" />
+              <input
+                type="number"
+                step="0.01"
+                value={targetAmount}
+                onChange={e => setTargetAmount(e.target.value)}
+                required
+                className={`w-full pl-12 pr-4 py-3 rounded-xl border text-xl font-bold outline-none transition-all placeholder-gray-500 ${theme === 'light'
+                    ? 'bg-white border-gray-200 text-slate-900 focus:ring-2 focus:ring-teal-500/20'
+                    : 'bg-white/[0.05] border-white/[0.1] text-white focus:ring-2 focus:ring-teal-500/50'
+                  }`}
+              />
             </div>
           </div>
           <div>
-            <label className="block text-sm font-bold text-gray-300 mb-2">Já guardado</label>
+            <label className={`block text-sm font-bold mb-2 transition-colors ${theme === 'light' ? 'text-slate-700' : 'text-gray-300'}`}>Já guardado</label>
             <div className="relative">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">R$</span>
-              <input type="number" step="0.01" value={currentAmount} onChange={e => setCurrentAmount(e.target.value)} className="w-full pl-12 pr-4 py-3 rounded-xl border border-white/[0.1] bg-white/[0.05] text-white focus:ring-2 focus:ring-teal-500/50 focus:border-transparent outline-none transition-all placeholder-gray-500" />
+              <input
+                type="number"
+                step="0.01"
+                value={currentAmount}
+                onChange={e => setCurrentAmount(e.target.value)}
+                className={`w-full pl-12 pr-4 py-3 rounded-xl border outline-none transition-all placeholder-gray-500 ${theme === 'light'
+                    ? 'bg-white border-gray-200 text-slate-900 focus:ring-2 focus:ring-teal-500/20'
+                    : 'bg-white/[0.05] border-white/[0.1] text-white focus:ring-2 focus:ring-teal-500/50'
+                  }`}
+              />
             </div>
           </div>
           <div>
-            <label className="block text-sm font-bold text-gray-300 mb-2">Previsão / Data Alvo</label>
-            <input type="date" value={deadline} onChange={e => setDeadline(e.target.value)} required className="w-full px-4 py-3 rounded-xl border border-white/[0.1] bg-white/[0.05] text-white focus:ring-2 focus:ring-teal-500/50 focus:border-transparent outline-none transition-all" />
+            <label className={`block text-sm font-bold mb-2 transition-colors ${theme === 'light' ? 'text-slate-700' : 'text-gray-300'}`}>Previsão / Data Alvo</label>
+            <input
+              type="date"
+              value={deadline}
+              onChange={e => setDeadline(e.target.value)}
+              required
+              className={`w-full px-4 py-3 rounded-xl border outline-none transition-all ${theme === 'light'
+                  ? 'bg-white border-gray-200 text-slate-900 focus:ring-2 focus:ring-teal-500/20'
+                  : 'bg-white/[0.05] border-white/[0.1] text-white focus:ring-2 focus:ring-teal-500/50'
+                }`}
+            />
           </div>
           <div>
-            <label className="block text-sm font-bold text-gray-300 mb-3">Ícone</label>
+            <label className={`block text-sm font-bold mb-3 transition-colors ${theme === 'light' ? 'text-slate-700' : 'text-gray-300'}`}>Ícone</label>
             <div className="grid grid-cols-6 gap-2">
               {GOAL_ICONS.map(item => (
                 <button
                   key={item.id}
                   type="button"
                   onClick={() => setSelectedIconId(item.id)}
-                  className={`p-2 rounded-lg border transition-all flex flex-col items-center justify-center gap-1 h-16 ${selectedIconId === item.id ? 'bg-teal-500 text-white border-teal-500 shadow-[0_0_10px_rgba(45,212,191,0.5)]' : 'bg-white/[0.05] text-gray-400 border-transparent hover:bg-white/[0.1]'}`}
+                  className={`p-2 rounded-lg border transition-all flex flex-col items-center justify-center gap-1 h-16 ${selectedIconId === item.id
+                      ? 'bg-teal-500 text-white border-teal-500 shadow-[0_0_10px_rgba(45,212,191,0.5)]'
+                      : (theme === 'light'
+                        ? 'bg-gray-100 text-slate-400 border-transparent hover:bg-gray-200'
+                        : 'bg-white/[0.05] text-gray-400 border-transparent hover:bg-white/[0.1]')
+                    }`}
                 >
                   <Icon name={item.icon} />
                   <span className="text-[8px] uppercase font-bold truncate w-full text-center">{item.name}</span>
@@ -395,7 +497,8 @@ const GoalDetailModal: React.FC<{ goal: Goal; onClose: () => void; onUpdate: (id
             </div>
           </div>
           <div className="flex gap-3 pt-2">
-            <button type="button" onClick={() => setIsEditing(false)} className="flex-1 h-12 rounded-xl font-bold text-gray-300 bg-white/[0.05] hover:bg-white/[0.1] transition-all">
+            <button type="button" onClick={() => setIsEditing(false)} className={`flex-1 h-12 rounded-xl font-bold transition-all ${theme === 'light' ? 'bg-gray-100 text-slate-600 hover:bg-gray-200' : 'bg-white/[0.05] text-gray-300 hover:bg-white/[0.1]'
+              }`}>
               Cancelar
             </button>
             <button type="submit" className="flex-1 h-12 rounded-xl font-bold text-white bg-teal-500 hover:bg-teal-600 shadow-[0_0_20px_-5px_rgba(45,212,191,0.3)] transition-all active:scale-95">
@@ -414,7 +517,6 @@ const GoalDetailModal: React.FC<{ goal: Goal; onClose: () => void; onUpdate: (id
       <div className="relative space-y-6">
         {showConfetti && (
           <div className="absolute inset-0 pointer-events-none z-50 flex items-center justify-center overflow-hidden">
-            {/* Simple confetti simulation with CSS/SVG could go here, or just a celebration badge */}
             <motion.div
               initial={{ scale: 0, opacity: 0 }}
               animate={{ scale: 1.5, opacity: 1 }}
@@ -427,27 +529,28 @@ const GoalDetailModal: React.FC<{ goal: Goal; onClose: () => void; onUpdate: (id
         )}
 
         <div className="flex flex-col items-center justify-center py-4">
-          <div className={`flex h-20 w-20 items-center justify-center rounded-2xl bg-white/[0.05] text-white text-4xl mb-4 shadow-inner`}>
+          <div className={`flex h-20 w-20 items-center justify-center rounded-2xl transition-colors ${theme === 'light' ? 'bg-gray-100 text-slate-700' : 'bg-white/[0.05] text-white'
+            } text-4xl mb-4 shadow-inner`}>
             <Icon name={goal.icon} />
           </div>
-          <h2 className="text-2xl font-bold text-white text-center"><PrivateValue>{formatCurrency(goal.currentAmount)}</PrivateValue></h2>
-          <p className="text-sm text-gray-400">de <PrivateValue>{formatCurrency(goal.targetAmount)}</PrivateValue></p>
+          <h2 className={`text-2xl font-bold text-center transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}><PrivateValue>{formatCurrency(goal.currentAmount)}</PrivateValue></h2>
+          <p className={`text-sm transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>de <PrivateValue>{formatCurrency(goal.targetAmount)}</PrivateValue></p>
         </div>
 
         <div className="space-y-2">
           <div className="flex justify-between text-sm font-medium">
-            <span className="text-gray-300">Progresso</span>
+            <span className={`transition-colors ${theme === 'light' ? 'text-slate-700' : 'text-gray-300'}`}>Progresso</span>
             <span className={`transition-colors ${percentage >= 100 ? 'text-yellow-400 font-bold' : 'text-teal-400'}`}>
               {percentage.toFixed(1)}%
             </span>
           </div>
-          <div className="w-full rounded-full bg-white/[0.05] h-3 overflow-hidden">
+          <div className={`w-full rounded-full h-3 overflow-hidden transition-colors ${theme === 'light' ? 'bg-gray-100' : 'bg-white/[0.05]'}`}>
             <div
               className={`h-3 rounded-full transition-all duration-1000 ${percentage >= 100 ? 'bg-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.6)]' : 'bg-teal-500 shadow-[0_0_10px_rgba(45,212,191,0.5)]'}`}
               style={{ width: `${percentage}%` }}
             ></div>
           </div>
-          <p className="text-xs text-center text-gray-500 mt-2">Meta para: {goal.deadline}</p>
+          <p className={`text-xs text-center mt-2 transition-colors ${theme === 'light' ? 'text-slate-400' : 'text-gray-500'}`}>Meta para: {goal.deadline}</p>
         </div>
 
         <div className="space-y-3 pt-4">
@@ -471,7 +574,8 @@ const GoalDetailModal: React.FC<{ goal: Goal; onClose: () => void; onUpdate: (id
           <div className="grid grid-cols-2 gap-3">
             <button
               onClick={() => setIsEditing(true)}
-              className="flex items-center justify-center gap-2 h-12 rounded-xl font-bold text-gray-400 bg-white/[0.05] hover:bg-white/[0.1] transition-all"
+              className={`flex items-center justify-center gap-2 h-12 rounded-xl font-bold transition-all ${theme === 'light' ? 'bg-gray-100 text-slate-600 hover:bg-gray-200' : 'bg-white/[0.05] text-gray-400 hover:bg-white/[0.1]'
+                }`}
             >
               <Icon name="edit" />
               Editar
@@ -487,8 +591,8 @@ const GoalDetailModal: React.FC<{ goal: Goal; onClose: () => void; onUpdate: (id
         </div>
 
         {/* Transaction History */}
-        <div className="pt-6 border-t border-white/[0.05]">
-          <h3 className="text-sm font-bold text-gray-300 mb-4 flex items-center gap-2">
+        <div className={`pt-6 border-t transition-colors ${theme === 'light' ? 'border-gray-100' : 'border-white/[0.05]'}`}>
+          <h3 className={`text-sm font-bold mb-4 flex items-center gap-2 transition-colors ${theme === 'light' ? 'text-slate-700' : 'text-gray-300'}`}>
             <Icon name="history" />
             Histórico de Transações
           </h3>
@@ -498,14 +602,15 @@ const GoalDetailModal: React.FC<{ goal: Goal; onClose: () => void; onUpdate: (id
               <div className="text-center py-4 text-gray-500 text-xs">Carregando histórico...</div>
             ) : transactions && transactions.length > 0 ? (
               transactions.map(t => (
-                <div key={t.id} className="flex items-center justify-between p-3 rounded-lg bg-white/[0.02] border border-white/[0.03]">
+                <div key={t.id} className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${theme === 'light' ? 'bg-gray-50 border-gray-100' : 'bg-white/[0.02] border-white/[0.03]'
+                  }`}>
                   <div className="flex items-center gap-3">
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center ${t.type === 'deposit' ? 'bg-teal-500/20 text-teal-400' : 'bg-orange-500/20 text-orange-400'}`}>
                       <Icon name={t.type === 'deposit' ? 'arrow_downward' : 'arrow_upward'} className="text-sm" />
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-white">{t.description || (t.type === 'deposit' ? 'Depósito' : 'Resgate')}</p>
-                      <p className="text-xs text-gray-500">{new Date(t.date).toLocaleDateString()}</p>
+                      <p className={`text-sm font-medium transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>{t.description || (t.type === 'deposit' ? 'Depósito' : 'Resgate')}</p>
+                      <p className={`text-xs transition-colors ${theme === 'light' ? 'text-slate-400' : 'text-gray-500'}`}>{new Date(t.date).toLocaleDateString()}</p>
                     </div>
                   </div>
                   <span className={`font-bold text-sm ${t.type === 'deposit' ? 'text-teal-400' : 'text-orange-400'}`}>
@@ -514,7 +619,7 @@ const GoalDetailModal: React.FC<{ goal: Goal; onClose: () => void; onUpdate: (id
                 </div>
               ))
             ) : (
-              <div className="text-center py-6 text-gray-600 text-xs italic">
+              <div className={`text-center py-6 text-xs italic transition-colors ${theme === 'light' ? 'text-slate-400' : 'text-gray-600'}`}>
                 Nenhuma transação registrada.
               </div>
             )}

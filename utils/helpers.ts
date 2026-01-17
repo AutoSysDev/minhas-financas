@@ -127,6 +127,7 @@ export const getMonthlyIncome = (
 
   return transactions.reduce((acc, t) => {
     if (t.type !== 'INCOME') return acc;
+    // For income, we usually only count paid unless it's a specific type
     if (!t.isPaid) return acc;
 
     const tDate = getTransactionDate(t.date);
@@ -138,7 +139,7 @@ export const getMonthlyIncome = (
 };
 
 /**
- * Get monthly expenses (paid transactions only)
+ * Get monthly expenses (paid transactions AND all credit card transactions)
  */
 export const getMonthlyExpenses = (
   transactions: any[],
@@ -149,7 +150,10 @@ export const getMonthlyExpenses = (
 
   return transactions.reduce((acc, t) => {
     if (t.type !== 'EXPENSE') return acc;
-    if (!t.isPaid) return acc;
+
+    // Include if paid OR if it's a credit card transaction (which are usually unpaid until invoice payment)
+    const isCreditCard = !!t.cardId;
+    if (!t.isPaid && !isCreditCard) return acc;
 
     const tDate = getTransactionDate(t.date);
     if (tDate > endOfMonth) return acc;
@@ -179,7 +183,8 @@ export const getMonthlyPendingIncome = (
 };
 
 /**
- * Get pending expenses for the month (unpaid transactions)
+ * Get pending expenses for the month (unpaid bank transactions only)
+ * Credit card transactions are already included in getMonthlyExpenses
  */
 export const getMonthlyPendingExpenses = (
   transactions: any[],
@@ -189,6 +194,9 @@ export const getMonthlyPendingExpenses = (
   return transactions.reduce((acc, t) => {
     if (t.type !== 'EXPENSE') return acc;
     if (t.isPaid) return acc; // Only unpaid
+
+    // If it's a credit card transaction, it's already counted in getMonthlyExpenses
+    if (t.cardId) return acc;
 
     const tDate = getTransactionDate(t.date);
     if (tDate.getMonth() !== month || tDate.getFullYear() !== year) return acc;
@@ -288,7 +296,8 @@ export const calculateCarryOverChain = (
   startYear: number,
   startMonth: number,
   endYear: number,
-  endMonth: number
+  endMonth: number,
+  initialCarry: number = 0
 ): {
   months: {
     year: number;
@@ -311,20 +320,20 @@ export const calculateCarryOverChain = (
   }[] = [];
   const transfers: { from: string; to: string; amount: number }[] = [];
 
-  let carry = 0;
+  let carry = initialCarry;
   for (let i = 0; i < months.length; i++) {
     const { year, month } = months[i];
     const net = getMonthlyForecastNet(transactions, year, month);
-    const carryIn = carry > 0 ? carry : 0;
+    const carryIn = carry;
     const final = carryIn + net;
-    const carryOut = final > 0 ? final : 0;
+    const carryOut = final;
     resultMonths.push({ year, month, carryIn, net, final, carryOut });
-    if (carryOut > 0 && i < months.length - 1) {
+    if (i < months.length - 1) {
       const next = months[i + 1];
       transfers.push({
         from: `${String(month + 1).padStart(2, '0')}/${year}`,
         to: `${String(next.month + 1).padStart(2, '0')}/${next.year}`,
-        amount: carryOut
+        amount: Math.abs(carryOut)
       });
     }
     carry = carryOut;
@@ -335,6 +344,7 @@ export const calculateCarryOverChain = (
 
 export const getMonthlyForecastWithCarry = (
   transactions: any[],
+  accounts: any[],
   year: number,
   month: number,
   lookbackMonths: number = 12
@@ -348,12 +358,19 @@ export const getMonthlyForecastWithCarry = (
   startDate.setMonth(startDate.getMonth() - Math.max(lookbackMonths - 1, 0));
   const startYear = startDate.getFullYear();
   const startMonth = startDate.getMonth();
+
+  // Calcular o carry inicial: saldo acumulado até o mês anterior ao início da cadeia
+  const carryDate = new Date(startYear, startMonth, 1);
+  carryDate.setMonth(carryDate.getMonth() - 1);
+  const initialCarry = getTotalCumulativeBalance(transactions, accounts, carryDate.getFullYear(), carryDate.getMonth());
+
   const { months, transfers } = calculateCarryOverChain(
     transactions,
     startYear,
     startMonth,
     endYear,
-    endMonth
+    endMonth,
+    initialCarry
   );
   const current = months[months.length - 1];
   return {

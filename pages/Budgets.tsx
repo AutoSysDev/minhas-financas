@@ -4,6 +4,7 @@ import { PrivateValue } from '../components/PrivateValue';
 import { Dropdown } from '../components/Dropdown';
 import { Modal } from '../components/Modal';
 import { useFinance } from '../context/FinanceContext';
+import { useTheme } from '../context/ThemeContext';
 import { Budget, Transaction, TransactionType } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { MonthNavigation } from '../components/MonthNavigation';
@@ -11,6 +12,7 @@ import { formatCurrency, formatDate, getTransactionDate } from '../utils/helpers
 
 const Budgets: React.FC = () => {
   const { budgets, transactions, addBudget } = useFinance();
+  const { theme } = useTheme();
   const [selectedBudget, setSelectedBudget] = useState<Budget | null>(null);
   const [isNewBudgetModalOpen, setIsNewBudgetModalOpen] = useState(false);
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -38,8 +40,8 @@ const Budgets: React.FC = () => {
     <div className="flex flex-col gap-6 animate-fade-in pb-20 md:pb-0 relative">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-white text-2xl md:text-3xl font-black leading-tight tracking-[-0.033em]">Orçamentos</h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1 text-sm">Planejamento mensal de gastos.</p>
+          <h1 className={`text-2xl md:text-3xl font-black leading-tight tracking-[-0.033em] transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>Orçamentos</h1>
+          <p className={`mt-1 text-sm transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Planejamento mensal de gastos.</p>
         </div>
         <div className="flex items-center gap-4">
           <MonthNavigation
@@ -67,28 +69,31 @@ const Budgets: React.FC = () => {
       </div>
 
       {/* Resumo Unificado */}
-      <div className="bg-white/[0.02] backdrop-blur-md rounded-xl shadow-sm border border-white/[0.05] overflow-hidden">
-        <div className="grid grid-cols-3 divide-x divide-white/[0.05]">
+      <div className={`backdrop-blur-md rounded-xl shadow-sm border overflow-hidden transition-all ${theme === 'light'
+        ? 'bg-white border-gray-200'
+        : 'bg-white/[0.02] border-white/[0.05]'
+        }`}>
+        <div className={`grid grid-cols-3 divide-x transition-colors ${theme === 'light' ? 'divide-gray-100' : 'divide-white/[0.05]'}`}>
           <div className="p-4 flex flex-col items-center justify-center text-center">
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Orçado</p>
-            <p className="text-sm md:text-lg font-bold text-white truncate w-full">
+            <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 transition-colors ${theme === 'light' ? 'text-slate-400' : 'text-gray-400'}`}>Orçado</p>
+            <p className={`text-sm md:text-lg font-bold truncate w-full transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
               <PrivateValue>{formatCurrency(totalBudget)}</PrivateValue>
             </p>
           </div>
           <div className="p-4 flex flex-col items-center justify-center text-center">
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Gasto</p>
-            <p className="text-sm md:text-lg font-bold text-white truncate w-full">
+            <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 transition-colors ${theme === 'light' ? 'text-slate-400' : 'text-gray-400'}`}>Gasto</p>
+            <p className={`text-sm md:text-lg font-bold truncate w-full transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
               <PrivateValue>{formatCurrency(totalSpent)}</PrivateValue>
             </p>
           </div>
-          <div className="p-4 flex flex-col items-center justify-center text-center bg-white/[0.02]">
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Restante</p>
-            <p className={`text-sm md:text-lg font-bold truncate w-full ${totalRemaining < 0 ? 'text-red-400' : 'text-green-400'}`}>
+          <div className={`p-4 flex flex-col items-center justify-center text-center transition-colors ${theme === 'light' ? 'bg-gray-50' : 'bg-white/[0.02]'}`}>
+            <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 transition-colors ${theme === 'light' ? 'text-slate-400' : 'text-gray-400'}`}>Restante</p>
+            <p className={`text-sm md:text-lg font-bold truncate w-full ${totalRemaining < 0 ? 'text-red-500' : (theme === 'light' ? 'text-green-600' : 'text-green-400')}`}>
               <PrivateValue>{formatCurrency(totalRemaining)}</PrivateValue>
             </p>
           </div>
         </div>
-        <div className="relative h-1.5 w-full bg-white/[0.05]">
+        <div className={`relative h-1.5 w-full transition-colors ${theme === 'light' ? 'bg-gray-100' : 'bg-white/[0.05]'}`}>
           <div className="absolute h-full bg-teal-500 transition-all duration-500 rounded-r-full shadow-[0_0_10px_rgba(45,212,191,0.5)]" style={{ width: `${totalPercentage}%` }}></div>
         </div>
       </div>
@@ -103,13 +108,16 @@ const Budgets: React.FC = () => {
           let progressColor = '#22c55e'; // Green-500
           if (isOverBudget) progressColor = '#ef4444'; // Red-500
           else if (isWarning) progressColor = '#eab308'; // Yellow-500
-          const remainingTextClass = remaining < 0 ? 'text-red-400' : 'text-white';
+          const remainingTextClass = remaining < 0 ? 'text-red-500' : (theme === 'light' ? 'text-slate-900' : 'text-white');
 
           return (
             <div
               key={budget.id}
               onClick={() => setSelectedBudget(budget)}
-              className="bg-white/[0.02] backdrop-blur-md rounded-2xl shadow-sm border border-white/[0.05] p-4 flex items-center gap-4 cursor-pointer hover:bg-white/[0.04] hover:border-teal-500/30 transition-all active:scale-[0.99] group"
+              className={`backdrop-blur-md rounded-2xl shadow-sm border p-4 flex items-center gap-4 cursor-pointer transition-all active:scale-[0.99] group ${theme === 'light'
+                ? 'bg-white border-gray-200 hover:bg-gray-50 hover:border-teal-500/30'
+                : 'bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.04] hover:border-teal-500/30'
+                }`}
             >
               <div
                 className="size-12 rounded-xl flex-shrink-0 flex items-center justify-center text-white shadow-sm text-2xl"
@@ -119,23 +127,23 @@ const Budgets: React.FC = () => {
               </div>
               <div className="flex-1 min-w-0 flex flex-col gap-2">
                 <div className="flex justify-between items-baseline">
-                  <h3 className="font-bold text-base text-white truncate group-hover:text-teal-400 transition-colors">{budget.category}</h3>
+                  <h3 className={`font-bold text-base truncate group-hover:text-teal-500 transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>{budget.category}</h3>
                   <div className="text-right">
                     <span className={`text-sm font-bold ${remainingTextClass}`}>
                       <PrivateValue>{remaining < 0 ? '-' : ''} {formatCurrency(Math.abs(remaining))}</PrivateValue>
                     </span>
-                    <span className="text-[10px] text-gray-400 font-normal ml-1 uppercase">restante</span>
+                    <span className={`text-[10px] font-normal ml-1 uppercase transition-colors ${theme === 'light' ? 'text-slate-400' : 'text-gray-400'}`}>restante</span>
                   </div>
                 </div>
-                <div className="w-full h-2 bg-white/[0.05] rounded-full overflow-hidden">
+                <div className={`w-full h-2 rounded-full overflow-hidden transition-colors ${theme === 'light' ? 'bg-gray-100' : 'bg-white/[0.05]'}`}>
                   <div
                     className="h-full rounded-full transition-all duration-500 shadow-[0_0_10px_rgba(255,255,255,0.2)]"
                     style={{ width: `${Math.min(percentage, 100)}%`, backgroundColor: progressColor }}
                   ></div>
                 </div>
-                <div className="flex justify-between items-center text-xs text-gray-400">
+                <div className={`flex justify-between items-center text-xs transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>
                   <span><PrivateValue>{formatCurrency(budget.spent)}</PrivateValue> de <PrivateValue>{formatCurrency(budget.limit)}</PrivateValue></span>
-                  <span className={isOverBudget ? 'text-red-400 font-bold' : ''}>{percentage.toFixed(0)}%</span>
+                  <span className={isOverBudget ? 'text-red-500 font-bold' : ''}>{percentage.toFixed(0)}%</span>
                 </div>
               </div>
             </div>

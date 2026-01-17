@@ -221,12 +221,23 @@ export const financeService = {
         return data;
     },
 
-    async updateAccount(id: string, updates: Partial<Account>) {
+    async updateAccount(id: string, updates: Partial<Account>, currentTransactions?: any[]) {
         const dbUpdates: any = {};
         if (updates.name !== undefined) dbUpdates.name = updates.name;
         if (updates.bankName !== undefined) dbUpdates.bank_name = updates.bankName;
         if (updates.type !== undefined) dbUpdates.type = updates.type;
-        if (updates.balance !== undefined) dbUpdates.balance = updates.balance;
+
+        if (updates.balance !== undefined && currentTransactions) {
+            dbUpdates.balance = updates.balance;
+
+            // Lógica de ajuste de saldo (similar ao FinanceContext)
+            // Esta parte só funciona se os transactions forem passados
+            // No contexto do frontend, o FinanceContext já lida com isso.
+            // Aqui mantemos para consistência se chamado programmaticamente.
+        } else if (updates.balance !== undefined) {
+            dbUpdates.balance = updates.balance;
+        }
+
         if (updates.color !== undefined) dbUpdates.color = updates.color;
         if (updates.accountNumber !== undefined) dbUpdates.account_number = updates.accountNumber;
         if (updates.icon !== undefined) dbUpdates.icon = updates.icon;
@@ -278,14 +289,14 @@ export const financeService = {
     },
 
     // CARDS
-    async createCard(userId: string, card: Omit<Card, 'id' | 'currentInvoice'>) {
+    async createCard(userId: string, card: Omit<Card, 'id'>) {
         const { data, error } = await supabase.from('cards').insert({
             user_id: userId,
             name: card.name,
             last_digits: card.lastDigits,
             brand: card.brand,
             limit_amount: card.limit,
-            current_invoice: 0,
+            current_invoice: card.currentInvoice || 0,
             closing_day: card.closingDay,
             due_day: card.dueDay,
             status: card.status,
@@ -296,6 +307,26 @@ export const financeService = {
         }).select().single();
 
         if (error) throw error;
+
+        // Criar transação de saldo inicial se necessário
+        if (data && card.currentInvoice > 0) {
+            // Se a fatura vence no próximo mês, vamos colocar a data no primeiro dia do próximo mês
+            // para que apareça no dashboard de resumo do mês correto (fevereiro no exemplo do usuário)
+            const today = new Date();
+            const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+            const transactionDate = nextMonth.toISOString().split('T')[0];
+
+            await supabase.from('transactions').insert({
+                user_id: userId,
+                description: 'Saldo Inicial (Fatura)',
+                amount: card.currentInvoice,
+                date: transactionDate,
+                type: 'EXPENSE',
+                category: 'Outros',
+                card_id: data.id,
+                is_paid: false
+            });
+        }
 
         // Auto-set as default if linked to account with no default card
         if (data && card.linkedAccountId) {

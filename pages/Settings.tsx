@@ -12,6 +12,7 @@ import { useSharedAccount } from '../context/SharedAccountContext';
 import { InviteModal } from '../components/SharedAccount/InviteModal';
 import { PremiumPlans } from '../components/PremiumPlans';
 import { usePrivacy } from '../context/PrivacyContext';
+import { useTheme } from '../context/ThemeContext';
 
 type TabType = 'profile' | 'preferences' | 'categories' | 'notifications' | 'security' | 'subscription' | 'data' | 'shared';
 
@@ -20,12 +21,13 @@ const ToggleSwitch: React.FC<{ checked?: boolean; onChange?: (checked: boolean) 
   checked = false,
   onChange
 }) => {
+  const { theme } = useTheme();
   return (
     <button
       onClick={() => onChange?.(!checked)}
       className={`
         relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-teal-500/50
-        ${checked ? 'bg-teal-500' : 'bg-gray-600'}
+        ${checked ? 'bg-teal-500' : (theme === 'light' ? 'bg-gray-300' : 'bg-gray-600')}
       `}
     >
       <span
@@ -44,6 +46,7 @@ const CategoryModal: React.FC<{
   onClose: () => void;
   onSave: (id: string, data: any) => Promise<void> | ((data: any) => Promise<void>);
 }> = ({ category, onClose, onSave }) => {
+  const { theme } = useTheme();
   const [name, setName] = useState(category?.name || '');
   const [icon, setIcon] = useState(category?.icon || 'category');
   const [color, setColor] = useState(category?.color || '#3b82f6');
@@ -76,21 +79,24 @@ const CategoryModal: React.FC<{
     <Modal isOpen={true} onClose={onClose} title={category ? 'Editar Categoria' : 'Nova Categoria'}>
       <form onSubmit={handleSubmit} className="space-y-6">
         <div>
-          <label className="block text-sm font-bold text-gray-300 mb-2">
+          <label className={`block text-sm font-bold mb-2 transition-colors ${theme === 'light' ? 'text-slate-700' : 'text-gray-300'}`}>
             Nome da Categoria
           </label>
           <input
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-full px-4 py-3 rounded-xl border border-white/[0.1] bg-white/[0.05] text-white focus:ring-2 focus:ring-teal-500/50 focus:border-transparent outline-none"
+            className={`w-full px-4 py-3 rounded-xl border outline-none transition-all ${theme === 'light'
+              ? 'bg-gray-50 border-gray-200 text-slate-900 focus:ring-teal-500/20'
+              : 'bg-white/[0.05] border-white/[0.1] text-white focus:ring-teal-500/50'
+              }`}
             placeholder="Ex: Alimentação"
             required
           />
         </div>
 
         <div>
-          <label className="block text-sm font-bold text-gray-300 mb-2">
+          <label className={`block text-sm font-bold mb-2 transition-colors ${theme === 'light' ? 'text-slate-700' : 'text-gray-300'}`}>
             Tipo
           </label>
           <div className="flex gap-3">
@@ -99,7 +105,7 @@ const CategoryModal: React.FC<{
               onClick={() => setType('expense')}
               className={`flex-1 py-3 rounded-xl font-medium transition-all ${type === 'expense'
                 ? 'bg-red-500 text-white shadow-[0_0_10px_rgba(239,68,68,0.3)]'
-                : 'bg-white/[0.05] text-gray-400'
+                : (theme === 'light' ? 'bg-gray-100 text-slate-500' : 'bg-white/[0.05] text-gray-400')
                 }`}
             >
               Despesa
@@ -109,7 +115,7 @@ const CategoryModal: React.FC<{
               onClick={() => setType('income')}
               className={`flex-1 py-3 rounded-xl font-medium transition-all ${type === 'income'
                 ? 'bg-green-500 text-white shadow-[0_0_10px_rgba(34,197,94,0.3)]'
-                : 'bg-white/[0.05] text-gray-400'
+                : (theme === 'light' ? 'bg-gray-100 text-slate-500' : 'bg-white/[0.05] text-gray-400')
                 }`}
             >
               Receita
@@ -118,7 +124,7 @@ const CategoryModal: React.FC<{
         </div>
 
         <div>
-          <label className="block text-sm font-bold text-gray-300 mb-2">
+          <label className={`block text-sm font-bold mb-2 transition-colors ${theme === 'light' ? 'text-slate-700' : 'text-gray-300'}`}>
             Ícone
           </label>
           <div className="grid grid-cols-6 gap-2">
@@ -129,7 +135,7 @@ const CategoryModal: React.FC<{
                 onClick={() => setIcon(iconName)}
                 className={`p-3 rounded-lg transition-all ${icon === iconName
                   ? 'bg-teal-500 text-white shadow-[0_0_10px_rgba(45,212,191,0.3)]'
-                  : 'bg-white/[0.05] text-gray-400 hover:bg-white/[0.1]'
+                  : (theme === 'light' ? 'bg-gray-100 text-slate-400 hover:bg-gray-200' : 'bg-white/[0.05] text-gray-400 hover:bg-white/[0.1]')
                   }`}
               >
                 <Icon name={iconName} className="text-xl" />
@@ -139,7 +145,7 @@ const CategoryModal: React.FC<{
         </div>
 
         <div>
-          <label className="block text-sm font-bold text-gray-300 mb-2">
+          <label className={`block text-sm font-bold mb-2 transition-colors ${theme === 'light' ? 'text-slate-700' : 'text-gray-300'}`}>
             Cor
           </label>
           <div className="grid grid-cols-5 gap-2">
@@ -160,7 +166,10 @@ const CategoryModal: React.FC<{
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 py-3 rounded-xl font-medium bg-white/[0.05] text-gray-300 hover:bg-white/[0.1] transition-colors"
+            className={`flex-1 py-3 rounded-xl font-medium transition-colors ${theme === 'light'
+              ? 'bg-gray-100 text-slate-600 hover:bg-gray-200'
+              : 'bg-white/[0.05] text-gray-300 hover:bg-white/[0.1]'
+              }`}
           >
             Cancelar
           </button>
@@ -177,6 +186,7 @@ const CategoryModal: React.FC<{
 };
 
 const CategoriesTab: React.FC = () => {
+  const { theme } = useTheme();
   const { categories, deleteCategory, addCategory, updateCategory, restoreDefaultCategories } = useFinance();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -224,18 +234,24 @@ const CategoriesTab: React.FC = () => {
   return (
     <div className="space-y-8">
       <div className="flex justify-between items-center">
-        <h3 className="text-lg font-bold text-white">Gerenciar Categorias</h3>
+        <h3 className={`text-lg font-bold transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>Gerenciar Categorias</h3>
         <div className="flex items-center gap-2">
           <button
             onClick={() => { setEditingCategory(null); setIsModalOpen(true); }}
-            className="flex items-center gap-2 px-4 py-2 bg-teal-500/10 text-teal-400 rounded-lg hover:bg-teal-500/20 transition-colors"
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${theme === 'light'
+              ? 'bg-teal-50 text-teal-600 hover:bg-teal-100'
+              : 'bg-teal-500/10 text-teal-400 hover:bg-teal-500/20'
+              }`}
           >
             <Icon name="add" />
             Nova Categoria
           </button>
           <button
             onClick={async () => { await restoreDefaultCategories(); }}
-            className="flex items-center gap-2 px-4 py-2 bg-white/[0.05] text-gray-300 rounded-lg hover:bg-white/[0.1] transition-colors"
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${theme === 'light'
+              ? 'bg-gray-100 text-slate-600 hover:bg-gray-200'
+              : 'bg-white/[0.05] text-gray-300 hover:bg-white/[0.1]'
+              }`}
             title="Restaurar categorias padrão"
           >
             <Icon name="category" />
@@ -247,21 +263,31 @@ const CategoriesTab: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {/* Despesas */}
         <div className="space-y-4">
-          <h4 className="text-sm font-bold text-gray-400 uppercase tracking-wider">Despesas</h4>
+          <h4 className={`text-sm font-bold uppercase tracking-wider transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Despesas</h4>
           <div className="space-y-2">
             {expenseCategories.map(cat => (
-              <div key={cat.id} className="flex items-center justify-between p-3 bg-white/[0.02] border border-white/[0.05] rounded-xl group hover:border-white/[0.1] transition-colors">
+              <div key={cat.id} className={`flex items-center justify-between p-3 rounded-xl group transition-all ${theme === 'light'
+                ? 'bg-white border border-gray-100 hover:border-teal-200'
+                : 'bg-white/[0.02] border border-white/[0.05] hover:border-white/[0.1]'
+                }`}>
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-lg" style={{ backgroundColor: `${cat.color}20`, color: cat.color }}>
                     <Icon name={cat.icon} />
                   </div>
-                  <span className="font-medium text-gray-200">{cat.name}</span>
-                  {cat.isDefault && <span className="text-[10px] bg-white/[0.05] px-2 py-0.5 rounded text-gray-500">Padrão</span>}
+                  <span className={`font-medium transition-colors ${theme === 'light' ? 'text-slate-700' : 'text-gray-200'}`}>{cat.name}</span>
+                  {cat.isDefault && (
+                    <span className={`text-[10px] px-2 py-0.5 rounded transition-colors ${theme === 'light' ? 'bg-gray-100 text-slate-400' : 'bg-white/[0.05] text-gray-500'}`}>
+                      Padrão
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
                     onClick={() => { setEditingCategory(cat); setIsModalOpen(true); }}
-                    className="p-2 text-gray-400 hover:text-white hover:bg-white/[0.05] rounded-lg transition-colors"
+                    className={`p-2 rounded-lg transition-colors ${theme === 'light'
+                      ? 'text-slate-400 hover:text-slate-600 hover:bg-gray-100'
+                      : 'text-gray-400 hover:text-white hover:bg-white/[0.05]'
+                      }`}
                   >
                     <Icon name="edit" className="text-lg" />
                   </button>
@@ -281,21 +307,31 @@ const CategoriesTab: React.FC = () => {
 
         {/* Receitas */}
         <div className="space-y-4">
-          <h4 className="text-sm font-bold text-gray-400 uppercase tracking-wider">Receitas</h4>
+          <h4 className={`text-sm font-bold uppercase tracking-wider transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Receitas</h4>
           <div className="space-y-2">
             {incomeCategories.map(cat => (
-              <div key={cat.id} className="flex items-center justify-between p-3 bg-white/[0.02] border border-white/[0.05] rounded-xl group hover:border-white/[0.1] transition-colors">
+              <div key={cat.id} className={`flex items-center justify-between p-3 rounded-xl group transition-all ${theme === 'light'
+                ? 'bg-white border border-gray-100 hover:border-teal-200'
+                : 'bg-white/[0.02] border border-white/[0.05] hover:border-white/[0.1]'
+                }`}>
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-lg" style={{ backgroundColor: `${cat.color}20`, color: cat.color }}>
                     <Icon name={cat.icon} />
                   </div>
-                  <span className="font-medium text-gray-200">{cat.name}</span>
-                  {cat.isDefault && <span className="text-[10px] bg-white/[0.05] px-2 py-0.5 rounded text-gray-500">Padrão</span>}
+                  <span className={`font-medium transition-colors ${theme === 'light' ? 'text-slate-700' : 'text-gray-200'}`}>{cat.name}</span>
+                  {cat.isDefault && (
+                    <span className={`text-[10px] px-2 py-0.5 rounded transition-colors ${theme === 'light' ? 'bg-gray-100 text-slate-400' : 'bg-white/[0.05] text-gray-500'}`}>
+                      Padrão
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
                     onClick={() => { setEditingCategory(cat); setIsModalOpen(true); }}
-                    className="p-2 text-gray-400 hover:text-white hover:bg-white/[0.05] rounded-lg transition-colors"
+                    className={`p-2 rounded-lg transition-colors ${theme === 'light'
+                      ? 'text-slate-400 hover:text-slate-600 hover:bg-gray-100'
+                      : 'text-gray-400 hover:text-white hover:bg-white/[0.05]'
+                      }`}
                   >
                     <Icon name="edit" className="text-lg" />
                   </button>
@@ -327,6 +363,7 @@ const CategoriesTab: React.FC = () => {
 
 
 const SharedAccountTab: React.FC = () => {
+  const { theme } = useTheme();
   const { user } = useAuth();
   const { members, invites, pendingInvites, acceptInvite, rejectInvite, leaveSharedAccount, removeMember, cancelInvite } = useSharedAccount();
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
@@ -338,12 +375,15 @@ const SharedAccountTab: React.FC = () => {
     <div className="space-y-8">
       <div className="flex justify-between items-center">
         <div>
-          <h3 className="text-lg font-bold text-white">Conta Compartilhada</h3>
-          <p className="text-sm text-gray-400">Gerencie quem tem acesso às suas finanças.</p>
+          <h3 className={`text-lg font-bold transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>Conta Compartilhada</h3>
+          <p className={`text-sm transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Gerencie quem tem acesso às suas finanças.</p>
         </div>
         <button
           onClick={() => setIsInviteModalOpen(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-teal-500/10 text-teal-400 rounded-lg hover:bg-teal-500/20 transition-colors"
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${theme === 'light'
+            ? 'bg-teal-50 text-teal-600 hover:bg-teal-100'
+            : 'bg-teal-500/10 text-teal-400 hover:bg-teal-500/20'
+            }`}
         >
           <Icon name="person_add" />
           Convidar
@@ -352,17 +392,20 @@ const SharedAccountTab: React.FC = () => {
 
       {/* Solicitações (Recebidas) */}
       <div id="solicitacoes" className={`p-6 rounded-[2rem] border transition-all ${pendingInvites.length > 0
-        ? 'bg-blue-500/5 border-blue-500/20'
-        : 'bg-white/[0.02] border-white/[0.05]'
+        ? (theme === 'light' ? 'bg-blue-50 border-blue-200' : 'bg-blue-500/5 border-blue-500/20')
+        : (theme === 'light' ? 'bg-white border-gray-100' : 'bg-white/[0.02] border-white/[0.05]')
         }`}>
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <div className={`p-2 rounded-xl ${pendingInvites.length > 0 ? 'bg-blue-500/20 text-blue-400' : 'bg-white/[0.05] text-gray-500'}`}>
+            <div className={`p-2 rounded-xl transition-colors ${pendingInvites.length > 0
+              ? (theme === 'light' ? 'bg-blue-100 text-blue-600' : 'bg-blue-500/20 text-blue-400')
+              : (theme === 'light' ? 'bg-gray-100 text-slate-400' : 'bg-white/[0.05] text-gray-500')
+              }`}>
               <Icon name="mail" />
             </div>
             <div>
-              <h4 className="text-lg font-bold text-white">Solicitações</h4>
-              <p className="text-xs text-gray-500">Convites que você recebeu de outras pessoas.</p>
+              <h4 className={`text-lg font-bold transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>Solicitações</h4>
+              <p className={`text-xs transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-500'}`}>Convites que você recebeu de outras pessoas.</p>
             </div>
           </div>
           {pendingInvites.length > 0 && (
@@ -374,19 +417,25 @@ const SharedAccountTab: React.FC = () => {
 
         {pendingInvites.length === 0 ? (
           <div className="text-center py-8">
-            <p className="text-sm text-gray-500 italic">Nenhuma solicitação pendente.</p>
+            <p className={`text-sm italic transition-colors ${theme === 'light' ? 'text-slate-400' : 'text-gray-500'}`}>Nenhuma solicitação pendente.</p>
           </div>
         ) : (
           <div className="space-y-3">
             {pendingInvites.map(invite => (
-              <div key={invite.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white/[0.03] border border-white/[0.05] p-4 rounded-2xl hover:border-blue-500/30 transition-colors">
+              <div key={invite.id} className={`flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border p-4 rounded-2xl transition-all ${theme === 'light'
+                ? 'bg-white border-gray-100 hover:border-blue-200'
+                : 'bg-white/[0.03] border-white/[0.05] hover:border-blue-500/30'
+                }`}>
                 <div className="flex items-center gap-3">
-                  <div className="size-10 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-400 font-bold border border-blue-500/20">
+                  <div className={`size-10 rounded-full flex items-center justify-center font-bold border transition-colors ${theme === 'light'
+                    ? 'bg-blue-50 text-blue-600 border-blue-100'
+                    : 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                    }`}>
                     {invite.email.substring(0, 1).toUpperCase()}
                   </div>
                   <div>
-                    <span className="text-white text-sm block font-bold">{invite.email}</span>
-                    <span className="text-[10px] text-gray-500 uppercase tracking-widest">Quer compartilhar as finanças</span>
+                    <span className={`text-sm block font-bold transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>{invite.email}</span>
+                    <span className={`text-[10px] uppercase tracking-widest transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-500'}`}>Quer compartilhar as finanças</span>
                   </div>
                 </div>
                 <div className="flex gap-2 w-full sm:w-auto">
@@ -398,7 +447,10 @@ const SharedAccountTab: React.FC = () => {
                   </button>
                   <button
                     onClick={() => rejectInvite(invite.id)}
-                    className="flex-1 sm:flex-none px-4 py-2 bg-white/[0.05] text-gray-400 rounded-xl text-xs font-bold hover:bg-red-500/10 hover:text-red-400 transition-all active:scale-95"
+                    className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-bold transition-all active:scale-95 ${theme === 'light'
+                      ? 'bg-gray-100 text-slate-500 hover:bg-red-50 hover:text-red-500'
+                      : 'bg-white/[0.05] text-gray-400 hover:bg-red-500/10 hover:text-red-400'
+                      }`}
                   >
                     Recusar
                   </button>
@@ -419,40 +471,51 @@ const SharedAccountTab: React.FC = () => {
             <>
               {/* Owner Section */}
               <div>
-                <h4 className="text-sm font-bold text-teal-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                <h4 className={`text-sm font-bold uppercase tracking-wider mb-4 flex items-center gap-2 transition-colors ${theme === 'light' ? 'text-teal-600' : 'text-teal-400'}`}>
                   <Icon name="verified_user" />
                   Quem está compartilhando
                 </h4>
                 {ownerMember ? (
-                  <div className="p-4 bg-gradient-to-r from-teal-500/10 to-transparent border border-teal-500/20 rounded-2xl flex items-center gap-4">
-                    <div className="size-12 rounded-full bg-teal-500/20 flex items-center justify-center text-teal-400 font-bold border border-teal-500/30">
+                  <div className={`p-4 border rounded-2xl flex items-center gap-4 transition-all ${theme === 'light'
+                    ? 'bg-teal-50 border-teal-100'
+                    : 'bg-gradient-to-r from-teal-500/10 to-transparent border-teal-500/20'
+                    }`}>
+                    <div className={`size-12 rounded-full flex items-center justify-center font-bold border transition-colors ${theme === 'light'
+                      ? 'bg-white text-teal-600 border-teal-100'
+                      : 'bg-teal-500/20 text-teal-400 border-teal-500/30'
+                      }`}>
                       {(ownerMember.email || 'O').substring(0, 2).toUpperCase()}
                     </div>
                     <div>
-                      <p className="font-bold text-white text-lg">{ownerMember.email || 'Proprietário'}</p>
-                      <p className="text-xs text-teal-400">Administrador da Conta</p>
+                      <p className={`font-bold text-lg transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>{ownerMember.email || 'Proprietário'}</p>
+                      <p className={`text-xs transition-colors ${theme === 'light' ? 'text-teal-600' : 'text-teal-400'}`}>Administrador da Conta</p>
                     </div>
                   </div>
                 ) : (
-                  <p className="text-gray-500 italic">Proprietário não identificado.</p>
+                  <p className={`italic transition-colors ${theme === 'light' ? 'text-slate-400' : 'text-gray-500'}`}>Proprietário não identificado.</p>
                 )}
               </div>
 
               {/* Guests Section */}
               <div>
-                <h4 className="text-sm font-bold text-blue-400 uppercase tracking-wider mb-4 mt-8 flex items-center gap-2">
+                <h4 className={`text-sm font-bold uppercase tracking-wider mb-4 mt-8 flex items-center gap-2 transition-colors ${theme === 'light' ? 'text-blue-600' : 'text-blue-400'}`}>
                   <Icon name="group" />
                   Membros Convidados
                 </h4>
                 <div className="space-y-3">
                   {guestMembers.length === 0 ? (
-                    <p className="text-gray-500 text-sm italic p-4 border border-white/5 rounded-xl bg-white/[0.02]">
+                    <p className={`text-sm italic p-4 border rounded-xl transition-all ${theme === 'light'
+                      ? 'bg-gray-50 border-gray-100 text-slate-400'
+                      : 'bg-white/[0.02] border-white/5 text-gray-500'
+                      }`}>
                       Nenhum outro membro nesta conta.
                     </p>
                   ) : (
                     guestMembers.map(member => (
-                      <div key={member.id} className="flex items-center justify-between p-4 bg-white/[0.02] border border-white/[0.05] rounded-xl group hover:bg-white/[0.04] transition-colors">
-                        <div className="flex items-center gap-3">
+                      <div key={member.id} className={`flex items-center justify-between p-4 border rounded-xl transition-all ${theme === 'light'
+                        ? 'bg-white border-gray-100 hover:bg-gray-50'
+                        : 'bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.04]'
+                        }`}>                        <div className="flex items-center gap-3">
                           <div className="size-10 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-400 font-bold border border-blue-500/20">
                             {(member.email || 'U').substring(0, 2).toUpperCase()}
                           </div>

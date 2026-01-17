@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Icon } from '../components/Icon';
 import { Dropdown } from '../components/Dropdown';
 import { useFinance } from '../context/FinanceContext';
+import { useTheme } from '../context/ThemeContext';
 import { TransactionType } from '../types';
 import { useSearchParams } from 'react-router-dom';
 import { formatCurrency, formatDate } from '../utils/helpers';
@@ -9,6 +10,7 @@ import { formatCurrency, formatDate } from '../utils/helpers';
 import { BANKS } from '../constants';
 
 const Invoice: React.FC = () => {
+  const { theme } = useTheme();
   const { cards, transactions, accounts } = useFinance();
   const [searchParams] = useSearchParams();
   const [selectedCardId, setSelectedCardId] = useState('');
@@ -59,11 +61,55 @@ const Invoice: React.FC = () => {
   // 1. Filter by Card
   const cardTransactionsAll = transactions.filter(t => t.cardId === selectedCard.id);
 
-  // 2. Filter by Month
-  const cardTransactions = cardTransactionsAll.filter(t => {
-    const tDate = getTransactionDate(t.date);
-    return tDate.getMonth() === currentDate.getMonth() && tDate.getFullYear() === currentDate.getFullYear();
-  });
+  // 2. Filter by Month (Credit Card Logic)
+  // A fatura que vence no mês M (currentDate) fecha no mês M ou M-1 dependendo do dia de fechamento vs vencimento.
+  // Regra geral: O fechamento ocorre ~7-10 dias antes do vencimento.
+  // Se o vencimento é dia 5 e o fechamento dia 29, o fechamento da fatura de Fevereiro ocorreu em 29 de Janeiro.
+  // Portanto, as transações da fatura de Fevereiro são as ocorridas entre o dia após o fechamento de Dezembro até o fechamento de Janeiro.
+
+  const getInvoiceTransactions = () => {
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth(); // 0-indexed (Jan=0)
+    const closingDay = selectedCard.closingDay || 1;
+    const dueDay = selectedCard.dueDay || 10;
+
+    // Determinar a data de fechamento da fatura selecionada (que vence em currentDate)
+    let closingDateOfSelectedInvoice: Date;
+    if (dueDay > closingDay) {
+      // Ex: Vence dia 15, fecha dia 5. A fatura de Fevereiro fecha em 5 de Fevereiro.
+      closingDateOfSelectedInvoice = new Date(year, month, closingDay);
+    } else {
+      // Ex: Vence dia 5, fecha dia 29. A fatura de Fevereiro fecha em 29 de Janeiro.
+      closingDateOfSelectedInvoice = new Date(year, month - 1, closingDay);
+    }
+
+    // A data de início é o dia seguinte ao fechamento anterior
+    const startDateOfSelectedInvoice = new Date(closingDateOfSelectedInvoice);
+    startDateOfSelectedInvoice.setMonth(startDateOfSelectedInvoice.getMonth() - 1);
+    startDateOfSelectedInvoice.setDate(startDateOfSelectedInvoice.getDate() + 1);
+
+    // Ajustar para o início do dia e fim do dia para comparação precisa
+    startDateOfSelectedInvoice.setHours(0, 0, 0, 0);
+    closingDateOfSelectedInvoice.setHours(23, 59, 59, 999);
+
+    return cardTransactionsAll.filter(t => {
+      const tDate = getTransactionDate(t.date);
+
+      // 1. Lógica Padrão: Transações dentro do ciclo de fechamento
+      const isInCycle = tDate >= startDateOfSelectedInvoice && tDate <= closingDateOfSelectedInvoice;
+
+      // 2. Lógica Especial: Saldo Inicial
+      // Se for um "Saldo Inicial (Fatura)" e a data for no mesmo mês/ano da fatura que estamos visualizando
+      const isInitialBalanceForThisMonth =
+        t.description === 'Saldo Inicial (Fatura)' &&
+        tDate.getMonth() === month &&
+        tDate.getFullYear() === year;
+
+      return isInCycle || isInitialBalanceForThisMonth;
+    });
+  };
+
+  const cardTransactions = getInvoiceTransactions();
 
   // Calculate Invoice Totals for the selected month
   const currentInvoiceAmount = cardTransactions
@@ -89,10 +135,10 @@ const Invoice: React.FC = () => {
       <div className="flex flex-col lg:flex-row gap-8">
         <div className="flex-grow lg:w-2/3 space-y-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
-            <h1 className="text-white text-3xl md:text-4xl font-black leading-tight tracking-[-0.033em]">Faturas de Cartão</h1>
+            <h1 className={`text-3xl md:text-4xl font-black leading-tight tracking-[-0.033em] transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>Faturas de Cartão</h1>
             <div className="w-full sm:w-auto min-w-[280px]">
               <label className="flex flex-col">
-                <p className="text-sm font-medium leading-normal pb-2 text-gray-400">Selecione o Cartão</p>
+                <p className={`text-sm font-medium leading-normal pb-2 transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Selecione o Cartão</p>
                 <div className="relative">
                   <Dropdown
                     options={cards.map(card => {
@@ -116,74 +162,74 @@ const Invoice: React.FC = () => {
           </div>
 
           {/* Navegador de Mês */}
-          <div className="flex items-center justify-between bg-white/[0.02] backdrop-blur-md border border-white/[0.05] p-1 rounded-xl shadow-sm w-full md:max-w-md mx-auto">
-            <button onClick={() => navigateMonth(-1)} className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors">
+          <div className={`flex items-center justify-between backdrop-blur-md border p-1 rounded-xl shadow-sm w-full md:max-w-md mx-auto transition-all ${theme === 'light' ? 'bg-white border-gray-100' : 'bg-white/[0.02] border-white/[0.05]'}`}>
+            <button onClick={() => navigateMonth(-1)} className={`p-2 rounded-lg transition-colors ${theme === 'light' ? 'hover:bg-gray-100 text-slate-500' : 'hover:bg-white/10 text-gray-400 hover:text-white'}`}>
               <Icon name="chevron_left" />
             </button>
             <button
               onClick={() => setIsMonthPickerOpen(true)}
-              className="flex flex-col items-center px-4 py-1 hover:bg-white/5 rounded-lg transition-colors cursor-pointer"
+              className={`flex flex-col items-center px-4 py-1 rounded-lg transition-colors cursor-pointer ${theme === 'light' ? 'hover:bg-gray-50' : 'hover:bg-white/5'}`}
             >
-              <span className="text-sm font-bold text-white capitalize leading-none">
+              <span className={`text-sm font-bold capitalize leading-none transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
                 {currentDate.toLocaleDateString('pt-BR', { month: 'long' })}
               </span>
-              <span className="text-[10px] text-gray-500 font-medium leading-none mt-1">
+              <span className={`text-[10px] font-medium leading-none mt-1 transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-500'}`}>
                 {currentDate.getFullYear()}
               </span>
             </button>
-            <button onClick={() => navigateMonth(1)} className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors">
+            <button onClick={() => navigateMonth(1)} className={`p-2 rounded-lg transition-colors ${theme === 'light' ? 'hover:bg-gray-100 text-slate-500' : 'hover:bg-white/10 text-gray-400 hover:text-white'}`}>
               <Icon name="chevron_right" />
             </button>
           </div>
 
-          <div className="bg-white/[0.02] backdrop-blur-md rounded-xl shadow-sm p-4 border border-white/[0.05]">
+          <div className={`backdrop-blur-md rounded-xl shadow-sm p-4 border transition-all ${theme === 'light' ? 'bg-white border-gray-100 shadow-slate-200/50' : 'bg-white/[0.02] border-white/[0.05]'}`}>
             {/* Simplified summary based on real data */}
             <div className="flex flex-col items-stretch justify-start md:flex-row md:items-center">
               <div className="flex w-full min-w-72 grow flex-col items-stretch justify-center gap-3 py-4 md:px-6">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-base font-medium text-gray-400">
-                    Fatura de <span className="capitalize text-white">{currentDate.toLocaleDateString('pt-BR', { month: 'long' })}</span>
+                  <p className={`text-base font-medium transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>
+                    Fatura de <span className={`capitalize transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>{currentDate.toLocaleDateString('pt-BR', { month: 'long' })}</span>
                   </p>
                   <span className="inline-flex items-center rounded-full bg-yellow-500/20 px-2.5 py-0.5 text-xs font-semibold text-yellow-300 border border-yellow-500/30">Aberta</span>
                 </div>
-                <p className="text-white text-3xl font-bold leading-tight tracking-[-0.015em]">
+                <p className={`text-3xl font-bold leading-tight tracking-[-0.015em] transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
                   {formatCurrency(currentInvoiceAmount)}
                 </p>
               </div>
             </div>
 
             {/* Limit info - keeping it global as it refers to the card's current state */}
-            <div className="flex flex-col gap-3 p-4 border-t border-white/[0.05] mt-4">
-              <div className="w-full rounded-full bg-white/[0.05] h-2.5">
+            <div className={`flex flex-col gap-3 p-4 border-t mt-4 transition-colors ${theme === 'light' ? 'border-gray-100' : 'border-white/[0.05]'}`}>
+              <div className={`w-full rounded-full h-2.5 transition-colors ${theme === 'light' ? 'bg-gray-100' : 'bg-white/[0.05]'}`}>
                 <div className="bg-teal-500 h-2.5 rounded-full transition-all duration-500 shadow-[0_0_10px_rgba(45,212,191,0.5)]" style={{ width: `${limitPercentage}%` }}></div>
               </div>
-              <p className="text-gray-400 text-sm font-normal leading-normal">
-                Limite Disponível (Atual): <span className="text-white font-bold">{formatCurrency(availableLimit)}</span>
+              <p className={`text-sm font-normal leading-normal transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>
+                Limite Disponível (Atual): <span className={`font-bold transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>{formatCurrency(availableLimit)}</span>
               </p>
             </div>
           </div>
 
-          <div className="bg-white/[0.02] backdrop-blur-md rounded-xl shadow-sm border border-white/[0.05]">
+          <div className={`backdrop-blur-md rounded-xl shadow-sm border transition-all ${theme === 'light' ? 'bg-white border-gray-100 shadow-slate-200/50' : 'bg-white/[0.02] border-white/[0.05]'}`}>
             <div className="p-6">
-              <h3 className="text-lg font-bold text-white mb-4">Detalhes da Fatura</h3>
-              <ul className="divide-y divide-white/[0.05]">
+              <h3 className={`text-lg font-bold mb-4 transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>Detalhes da Fatura</h3>
+              <ul className={`divide-y transition-colors ${theme === 'light' ? 'divide-gray-50' : 'divide-white/[0.05]'}`}>
                 {cardTransactions.length > 0 ? cardTransactions.map(t => (
-                  <li key={t.id} className="py-4 flex items-center justify-between hover:bg-white/[0.02] transition-colors px-2 rounded-lg -mx-2">
+                  <li key={t.id} className={`py-4 flex items-center justify-between transition-colors px-2 rounded-lg -mx-2 ${theme === 'light' ? 'hover:bg-gray-50' : 'hover:bg-white/[0.02]'}`}>
                     <div className="flex items-center gap-4">
-                      <div className={`flex h-10 w-10 items-center justify-center rounded-full ${t.type === TransactionType.INCOME ? 'bg-green-500/10 text-green-400' : 'bg-white/[0.05] text-teal-400'}`}>
+                      <div className={`flex h-10 w-10 items-center justify-center rounded-full ${t.type === TransactionType.INCOME ? 'bg-green-500/10 text-green-400' : (theme === 'light' ? 'bg-teal-50 text-teal-600' : 'bg-white/[0.05] text-teal-400')}`}>
                         <Icon name={t.type === TransactionType.INCOME ? 'payment' : 'shopping_cart'} />
                       </div>
                       <div>
-                        <p className="font-semibold text-white">{t.description}</p>
-                        <p className="text-sm text-gray-500">{formatDate(t.date)}</p>
+                        <p className={`font-semibold transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>{t.description}</p>
+                        <p className={`text-sm transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-500'}`}>{formatDate(t.date)}</p>
                       </div>
                     </div>
-                    <p className={`font-semibold ${t.type === TransactionType.INCOME ? 'text-green-400' : 'text-white'}`}>
+                    <p className={`font-semibold ${t.type === TransactionType.INCOME ? 'text-green-400' : (theme === 'light' ? 'text-slate-900' : 'text-white')}`}>
                       {t.type === TransactionType.INCOME ? '+' : '-'} {formatCurrency(t.amount)}
                     </p>
                   </li>
                 )) : (
-                  <li className="py-8 text-center text-gray-500">Nenhuma transação nesta fatura.</li>
+                  <li className={`py-8 text-center transition-colors ${theme === 'light' ? 'text-slate-400' : 'text-gray-500'}`}>Nenhuma transação nesta fatura.</li>
                 )}
               </ul>
             </div>
@@ -242,22 +288,25 @@ const MonthYearPicker: React.FC<{
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
       <div
         ref={pickerRef}
-        className="bg-[#0f1216]/90 backdrop-blur-xl border border-white/[0.08] rounded-2xl shadow-2xl w-full max-w-sm p-6 animate-scale-up ring-1 ring-white/5"
+        className={`backdrop-blur-xl border rounded-2xl shadow-2xl w-full max-w-sm p-6 animate-scale-up ring-1 transition-all ${theme === 'light'
+          ? 'bg-white/90 border-gray-200 ring-black/5 shadow-slate-200/50'
+          : 'bg-[#0f1216]/90 border-white/[0.08] ring-white/5'
+          }`}
       >
         {/* Year Selector */}
         <div className="flex items-center justify-between mb-6">
           <button
             onClick={() => setSelectedYear(selectedYear - 1)}
-            className="p-2 hover:bg-white/[0.05] rounded-lg transition-colors"
+            className={`p-2 rounded-lg transition-colors ${theme === 'light' ? 'hover:bg-gray-100 text-slate-500' : 'hover:bg-white/[0.05] text-gray-300'}`}
           >
-            <Icon name="chevron_left" className="text-gray-300" />
+            <Icon name="chevron_left" />
           </button>
-          <h3 className="text-xl font-bold text-white">{selectedYear}</h3>
+          <h3 className={`text-xl font-bold transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>{selectedYear}</h3>
           <button
             onClick={() => setSelectedYear(selectedYear + 1)}
-            className="p-2 hover:bg-white/[0.05] rounded-lg transition-colors"
+            className={`p-2 rounded-lg transition-colors ${theme === 'light' ? 'hover:bg-gray-100 text-slate-500' : 'hover:bg-white/[0.05] text-gray-300'}`}
           >
-            <Icon name="chevron_right" className="text-gray-300" />
+            <Icon name="chevron_right" />
           </button>
         </div>
 
@@ -271,7 +320,7 @@ const MonthYearPicker: React.FC<{
                 p-3 rounded-xl text-sm font-semibold transition-all
                 ${isCurrentMonth(index)
                   ? 'bg-teal-500 text-white shadow-lg shadow-teal-500/30'
-                  : 'bg-white/[0.05] text-gray-300 hover:bg-white/[0.1]'
+                  : (theme === 'light' ? 'bg-gray-100 text-slate-600 hover:bg-gray-200' : 'bg-white/[0.05] text-gray-300 hover:bg-white/[0.1]')
                 }
               `}
             >
@@ -283,7 +332,7 @@ const MonthYearPicker: React.FC<{
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="mt-6 w-full py-3 rounded-xl bg-white/[0.05] text-gray-300 font-semibold hover:bg-white/[0.1] transition-colors"
+          className={`mt-6 w-full py-3 rounded-xl font-semibold transition-colors ${theme === 'light' ? 'bg-gray-100 text-slate-600 hover:bg-gray-200' : 'bg-white/[0.05] text-gray-300 hover:bg-white/[0.1]'}`}
         >
           Fechar
         </button>
