@@ -1,12 +1,17 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Icon } from '../components/Icon';
 import { PrivateValue } from '../components/PrivateValue';
 import { ExpensePieChart, IncomeExpenseChart } from '../components/Charts';
 import { Link } from 'react-router-dom';
 import { useFinance } from '../context/FinanceContext';
-import { formatCurrency } from '../utils/helpers';
+import { useTransactions } from '../hooks/useTransactions';
+import { formatCurrency, getTransactionDate, getMonthlyIncome, getMonthlyExpenses, getMonthlyPendingIncome, getMonthlyPendingExpenses, getMonthlyForecastWithCarry, getAccountMonthNet, getTotalNetForMonth, getMonthlyPredictedBalanceStrict, getTotalCumulativeBalance, getInvestmentsTotalUntil, getAccountCumulativeBalance } from '../utils/helpers';
 import { TransactionType } from '../types';
+import { MonthNavigation } from '../components/MonthNavigation';
+import { DashboardSkeleton } from '../components/DashboardSkeleton';
+import { BANKS } from '../constants';
+// SharedViewToggle removed
 
 // Componente Sparkline (Mini Gráfico)
 const Sparkline: React.FC<{ data: number[], color: string }> = ({ data, color }) => {
@@ -35,92 +40,82 @@ const Sparkline: React.FC<{ data: number[], color: string }> = ({ data, color })
 };
 
 const Dashboard: React.FC = () => {
-  const { accounts, transactions } = useFinance();
+  const { accounts, recalculateBalances, investments, loading } = useFinance();
+  const { data: transactionsData, isLoading: isLoadingTransactions } = useTransactions();
+  const transactions = transactionsData || [];
+
   const [currentDate, setCurrentDate] = useState(new Date());
 
-  // --- Lógica de Navegação de Data ---
-  const navigateMonth = (direction: number) => {
-    const newDate = new Date(currentDate);
-    newDate.setMonth(currentDate.getMonth() + direction);
-    setCurrentDate(newDate);
-  };
 
   const selectedMonth = currentDate.getMonth();
   const selectedYear = currentDate.getFullYear();
   const isCurrentMonth = selectedMonth === new Date().getMonth() && selectedYear === new Date().getFullYear();
 
-  // Helper para normalizar datas (lidando com o mock '25 Nov' e datas ISO 'YYYY-MM-DD')
-  const getTransactionDate = (dateStr: string) => {
-    if (!dateStr) return new Date();
-
-    // Formato ISO (YYYY-MM-DD)
-    if (dateStr.includes('-')) {
-      const [year, month, day] = dateStr.split('-').map(Number);
-      return new Date(year, month - 1, day);
+  // --- 1. Cálculos Mensais usando Helpers Centralizados ---
+  const { summary: forecastSummary, transfers: forecastTransfers } = useMemo(() => {
+    try {
+      if (!transactions || transactions.length === 0) {
+        return {
+          summary: { carryIn: 0, net: 0, final: 0, carryOut: 0 },
+          transfers: []
+        };
+      }
+      return getMonthlyForecastWithCarry(transactions, selectedYear, selectedMonth);
+    } catch (error) {
+      console.error("Error calculating forecast:", error);
+      return {
+        summary: { carryIn: 0, net: 0, final: 0, carryOut: 0 },
+        transfers: []
+      };
     }
+  }, [transactions, selectedYear, selectedMonth]);
 
-    // Fallback para formato Mock (ex: "25 Nov") assumindo ano atual
-    const parts = dateStr.split(' ');
-    if (parts.length === 2) {
-      const day = parseInt(parts[0]);
-      const monthStr = parts[1];
-      const months: { [key: string]: number } = { 'Jan': 0, 'Fev': 1, 'Mar': 2, 'Abr': 3, 'Mai': 4, 'Jun': 5, 'Jul': 6, 'Ago': 7, 'Set': 8, 'Out': 9, 'Nov': 10, 'Dez': 11 };
-      const month = months[monthStr] !== undefined ? months[monthStr] : 0;
-      const year = new Date().getFullYear();
-      return new Date(year, month, day);
+  console.log('Dashboard Render:', { loading, isLoadingTransactions, hasData: transactions.length > 0 });
+
+  const totalIncome = getMonthlyIncome(transactions, selectedYear, selectedMonth);
+  const totalExpense = getMonthlyExpenses(transactions, selectedYear, selectedMonth);
+  const pendingIncome = getMonthlyPendingIncome(transactions, selectedYear, selectedMonth);
+  const pendingExpenses = getMonthlyPendingExpenses(transactions, selectedYear, selectedMonth);
+
+  // Saldo do mês (apenas consolidado do período selecionado)
+  const monthlyBalanceDisplay = getTotalNetForMonth(transactions, accounts, selectedYear, selectedMonth);
+
+  const predictedBalanceDisplay = forecastSummary.carryOut;
+  const periodIncomeTotal = totalIncome + pendingIncome;
+  const periodExpenseTotal = totalExpense + pendingExpenses;
+  const periodLabel = `${currentDate.toLocaleDateString('pt-BR', { month: 'long' })} ${selectedYear}`;
+
+  const [isForecastMounted, setIsForecastMounted] = useState(false);
+  const [isForecastExpanded, setIsForecastExpanded] = useState(false);
+  const toggleForecast = () => {
+    if (!isForecastExpanded) {
+      setIsForecastMounted(true);
+      requestAnimationFrame(() => setIsForecastExpanded(true));
+    } else {
+      setIsForecastExpanded(false);
+      setTimeout(() => setIsForecastMounted(false), 200);
     }
-
-    return new Date();
   };
 
-  // --- 1. Filtros do Mês Selecionado (Fluxo de Caixa) ---
+  // Patrimônio Total (saldo acumulado até o mês selecionado + investimentos)
+  const investmentsBalance = getInvestmentsTotalUntil(investments, selectedYear, selectedMonth);
+  const accountsCumulativeBalance = getTotalCumulativeBalance(transactions, accounts, selectedYear, selectedMonth);
+  const totalPatrimony = accountsCumulativeBalance + investmentsBalance;
+
+  // Filtro de transações do mês (para gráficos e categorias)
   const monthlyTransactions = transactions.filter(t => {
     const tDate = getTransactionDate(t.date);
     return tDate.getMonth() === selectedMonth && tDate.getFullYear() === selectedYear;
   });
-
-  const totalIncome = monthlyTransactions
-    .filter(t => t.type === TransactionType.INCOME)
-    .reduce((acc, t) => acc + t.amount, 0);
-
-  const totalExpense = monthlyTransactions
-    .filter(t => t.type === TransactionType.EXPENSE)
-    .reduce((acc, t) => acc + t.amount, 0);
+  const hasMonthlyData = monthlyTransactions.length > 0;
+  const prevDate = new Date(selectedYear, selectedMonth, 1);
+  prevDate.setMonth(prevDate.getMonth() - 1);
+  const startOfMonthBalance = getTotalCumulativeBalance(transactions, accounts, prevDate.getFullYear(), prevDate.getMonth());
 
   const totalTransfers = monthlyTransactions
     .filter(t => t.type === TransactionType.TRANSFER)
     .reduce((acc, t) => acc + t.amount, 0);
 
-  // --- 2. Cálculo de Saldo Histórico (Contas) ---
-  // Para mostrar o saldo correto em meses passados, pegamos o saldo atual e revertemos
-  // as transações que aconteceram DEPOIS do mês selecionado.
-  const nextMonthStart = new Date(selectedYear, selectedMonth + 1, 1);
-
-  const futureTransactions = transactions.filter(t => {
-    const tDate = getTransactionDate(t.date);
-    return tDate >= nextMonthStart;
-  });
-
-  const historicalAccounts = accounts.map(acc => {
-    let histBalance = acc.balance;
-    // Reverter transações futuras
-    futureTransactions.forEach(t => {
-      if (t.accountId === acc.id) {
-        // Se foi RECEITA no futuro, subtraímos para voltar ao passado
-        if (t.type === TransactionType.INCOME) {
-          histBalance -= t.amount;
-        } else {
-          // Se foi DESPESA ou TRANSFERÊNCIA (saída) no futuro, somamos de volta
-          histBalance += t.amount;
-        }
-      }
-    });
-    return { ...acc, balance: histBalance };
-  });
-
-  const totalBalance = historicalAccounts.reduce((acc, curr) => acc + curr.balance, 0);
-
-  // --- 3. Dados para o Mini Gráfico (Sparkline) ---
   const referenceDate = isCurrentMonth ? new Date() : new Date(selectedYear, selectedMonth + 1, 0);
 
   const last7DaysExpenses = Array.from({ length: 7 }).map((_, i) => {
@@ -194,6 +189,10 @@ const Dashboard: React.FC = () => {
     };
   });
 
+  if (loading || isLoadingTransactions) {
+    return <DashboardSkeleton />;
+  }
+
   return (
     <div className="flex flex-col gap-6 animate-fade-in pb-20 md:pb-0">
 
@@ -201,39 +200,27 @@ const Dashboard: React.FC = () => {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h1 className="text-white text-3xl md:text-4xl font-black leading-tight tracking-[-0.033em]">Dashboard</h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1 text-sm">Visão geral do seu patrimônio.</p>
+          <div className="flex items-center gap-2">
+            <p className="text-gray-600 dark:text-gray-400 mt-1 text-sm">Visão geral do seu patrimônio.</p>
+            <button onClick={recalculateBalances} className="text-[10px] bg-white/5 hover:bg-white/10 text-gray-500 px-2 py-0.5 rounded border border-white/5 transition-colors" title="Recalcular Saldos">
+              <Icon name="refresh" className="text-xs" />
+            </button>
+          </div>
         </div>
 
         {/* Navegador de Mês */}
-        <div className="flex items-center justify-between bg-white/[0.02] backdrop-blur-md border border-white/[0.05] p-1 rounded-xl shadow-sm w-full md:w-auto min-w-[240px]">
-          <button
-            onClick={() => navigateMonth(-1)}
-            className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors"
-          >
-            <Icon name="chevron_left" />
-          </button>
-          <div className="flex flex-col items-center">
-            <span className="text-sm font-bold text-white capitalize leading-none">
-              {currentDate.toLocaleDateString('pt-BR', { month: 'long' })}
-            </span>
-            <span className="text-[10px] text-gray-500 font-medium leading-none mt-1">
-              {currentDate.getFullYear()}
-            </span>
-          </div>
-          <button
-            onClick={() => navigateMonth(1)}
-            className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors"
-          >
-            <Icon name="chevron_right" />
-          </button>
-        </div>
+        <MonthNavigation
+          currentDate={currentDate}
+          onMonthChange={setCurrentDate}
+          className="w-full md:w-auto min-w-[240px]"
+        />
       </div>
 
       {/* Seção 1: Resumo de Contas (Grid Vertical e Compacto) */}
       <div>
         <div className="flex items-center justify-between mb-3 px-1">
           <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide">
-            Saldos em {currentDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+            Minhas Contas (Saldo Atual)
           </h3>
           <Link to="/accounts" className="text-primary text-xs font-bold hover:underline">Gerenciar</Link>
         </div>
@@ -247,27 +234,33 @@ const Dashboard: React.FC = () => {
               <span className="font-medium text-teal-100 text-xs">Patrimônio Total</span>
             </div>
             <div>
-              <p className="text-xl font-black tracking-tight"><PrivateValue>{formatCurrency(totalBalance)}</PrivateValue></p>
-              <p className="text-[10px] text-teal-200/70 mt-0.5">Soma de todas as contas</p>
+              <p className="text-xl font-black tracking-tight"><PrivateValue>{formatCurrency(totalPatrimony)}</PrivateValue></p>
+              <p className="text-[10px] text-teal-200/70 mt-0.5">Saldo + Investimentos</p>
             </div>
           </div>
 
-          {/* Cards das Contas Individuais - Histórico */}
-          {historicalAccounts.map(acc => (
+          {/* Cards das Contas Individuais - Saldo Atual */}
+          {accounts.map(acc => (
             <div
               key={acc.id}
               className="bg-white/[0.02] backdrop-blur-md border border-white/[0.05] rounded-xl p-4 shadow-sm flex items-center justify-between gap-4 hover:bg-white/[0.04] hover:border-teal-500/30 transition-all group"
             >
               <div className="flex items-center gap-3 min-w-0">
-                <div className="size-10 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-sm shrink-0" style={{ backgroundColor: acc.color }}>
-                  {acc.logoText}
+                <div className="size-10 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-sm shrink-0 overflow-hidden relative" style={{ backgroundColor: acc.color }}>
+                  {(() => {
+                    const bank = BANKS.find(b => b.name === acc.bankName);
+                    if (bank?.logo) {
+                      return <img src={bank.logo} alt={acc.bankName} className="w-full h-full object-cover" />;
+                    }
+                    return acc.logoText;
+                  })()}
                 </div>
                 <div className="min-w-0">
                   <p className="font-bold text-white truncate text-sm">{acc.name}</p>
                   <p className="text-[10px] text-gray-500 truncate uppercase tracking-wide">{acc.bankName}</p>
                 </div>
               </div>
-              <p className="text-base font-bold text-white whitespace-nowrap"><PrivateValue>{formatCurrency(acc.balance)}</PrivateValue></p>
+              <p className="text-base font-bold text-white whitespace-nowrap"><PrivateValue>{formatCurrency(getAccountCumulativeBalance(transactions, acc.id, selectedYear, selectedMonth))}</PrivateValue></p>
             </div>
           ))}
 
@@ -281,46 +274,119 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Seção 2: Visão Geral do Mês (Fluxo Compacto) */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {/* Receitas */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+        {/* Saldo Total (Repetido para contexto do grid, mas com foco no mês) */}
         <div className="bg-white/[0.02] backdrop-blur-md rounded-2xl p-6 border border-white/[0.05] shadow-lg relative overflow-hidden group hover:bg-white/[0.04] transition-all duration-300">
           <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
             <Icon name="account_balance_wallet" className="text-6xl text-white" />
           </div>
           <div className="relative z-10">
-            <p className="text-sm font-medium text-gray-400 mb-1">Saldo Total</p>
-            <h3 className="text-3xl font-bold text-white tracking-tight"><PrivateValue>{formatCurrency(totalBalance)}</PrivateValue></h3>
-            <div className="mt-4 flex items-center gap-2 text-xs font-medium text-teal-400 bg-teal-400/10 w-fit px-2 py-1 rounded-lg">
-              <Icon name="trending_up" className="text-sm" />
-              <span>+12% este mês</span>
+            <p className="text-sm font-medium text-gray-400 mb-1">Saldo Atual</p>
+            <h3 className="text-3xl font-bold text-white tracking-tight"><PrivateValue>{formatCurrency(accountsCumulativeBalance)}</PrivateValue></h3>
+            <div className="mt-4 flex items-center gap-2">
+              <div className="flex items-center gap-2 text-xs font-medium text-teal-400 bg-teal-400/10 w-fit px-2 py-1 rounded-lg">
+                <Icon name="event" className="text-sm" />
+                <span>{periodLabel}</span>
+              </div>
+              {!hasMonthlyData && (
+                <span className="text-[10px] font-bold text-gray-500 bg-white/5 px-2 py-1 rounded">Sem transações</span>
+              )}
             </div>
           </div>
         </div>
 
+        {/* Saldo Previsto (NOVO) */}
+        <div
+          className="bg-gradient-to-br from-indigo-900/20 to-purple-900/20 backdrop-blur-md rounded-2xl p-6 border border-indigo-500/20 shadow-lg relative overflow-hidden group hover:bg-indigo-500/10 hover:border-indigo-400/40 transition-all duration-300 cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-400/40"
+          onClick={toggleForecast}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleForecast(); } }}
+          tabIndex={0}
+          role="button"
+          aria-expanded={isForecastExpanded}
+          aria-controls="forecast-details"
+        >
+          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+            <Icon name="timeline" className="text-6xl text-indigo-400" />
+          </div>
+          <div className="relative z-10">
+            <p className="text-sm font-medium text-indigo-200 mb-1">Saldo Previsto</p>
+            <h3 className="text-3xl font-bold text-white tracking-tight"><PrivateValue>{formatCurrency(predictedBalanceDisplay)}</PrivateValue></h3>
+            {isForecastMounted && (
+              <div
+                id="forecast-details"
+                aria-hidden={!isForecastExpanded}
+                className={`mt-4 ${isForecastExpanded ? 'opacity-100' : 'opacity-0'} transition-opacity duration-200 ease-out`}
+                style={{ willChange: 'opacity' }}
+              >
+                <div className="grid grid-cols-2 gap-2 text-[11px] text-indigo-200">
+                  <div className="flex items-center justify-between bg-indigo-500/10 px-2 py-1 rounded">
+                    <span>Saldo inicial</span>
+                    <span className="font-bold"><PrivateValue>{formatCurrency(startOfMonthBalance)}</PrivateValue></span>
+                  </div>
+                  <div className="flex items-center justify-between bg-indigo-500/10 px-2 py-1 rounded">
+                    <span>Receitas</span>
+                    <span className="font-bold text-green-300"><PrivateValue>{formatCurrency(periodIncomeTotal)}</PrivateValue></span>
+                  </div>
+                  <div className="flex items-center justify-between bg-indigo-500/10 px-2 py-1 rounded">
+                    <span>Despesas</span>
+                    <span className="font-bold text-red-300"><PrivateValue>{formatCurrency(periodExpenseTotal)}</PrivateValue></span>
+                  </div>
+                  <div className="flex items-center justify-between bg-indigo-500/10 px-2 py-1 rounded">
+                    <span>Acumulado anterior</span>
+                    <span className="font-bold"><PrivateValue>{formatCurrency(forecastSummary.carryIn)}</PrivateValue></span>
+                  </div>
+                  <div className="col-span-2 flex items-center justify-between bg-indigo-500/20 px-2 py-1 rounded">
+                    <span>Saldo final</span>
+                    <span className="font-black"><PrivateValue>{formatCurrency(forecastSummary.carryOut)}</PrivateValue></span>
+                  </div>
+                </div>
+                {forecastTransfers.length > 0 && (
+                  <div className="mt-3 text-[10px] text-indigo-300">
+                    <div className="flex items-center gap-1 mb-1">
+                      <Icon name="swap_horiz" className="text-sm" />
+                      <span>Histórico de transferências</span>
+                    </div>
+                    <ul className="space-y-0.5">
+                      {forecastTransfers.slice(Math.max(0, forecastTransfers.length - 3)).map((tr, i) => (
+                        <li key={i} className="flex items-center justify-between bg-white/5 px-2 py-1 rounded">
+                          <span>{tr.from} → {tr.to}</span>
+                          <span className="font-bold"><PrivateValue>{formatCurrency(tr.amount)}</PrivateValue></span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Receitas */}
         <div className="bg-white/[0.02] backdrop-blur-md rounded-2xl p-6 border border-white/[0.05] shadow-lg relative overflow-hidden group hover:bg-white/[0.04] transition-all duration-300">
           <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            <Icon name="arrow_downward" className="text-6xl text-green-400" />
+            <Icon name="arrow_upward" className="text-6xl text-green-400" />
           </div>
           <div className="relative z-10">
             <p className="text-sm font-medium text-gray-400 mb-1">Receitas (Mês)</p>
             <h3 className="text-3xl font-bold text-white tracking-tight"><PrivateValue>{formatCurrency(totalIncome)}</PrivateValue></h3>
             <div className="mt-4 flex items-center gap-2 text-xs font-medium text-green-400 bg-green-400/10 w-fit px-2 py-1 rounded-lg">
-              <Icon name="arrow_upward" className="text-sm" />
-              <span>+5% vs mês anterior</span>
+              <Icon name="pending" className="text-sm" />
+              <span>{periodLabel} • <PrivateValue>{formatCurrency(pendingIncome)}</PrivateValue> pendente</span>
             </div>
           </div>
         </div>
 
+        {/* Despesas */}
         <div className="bg-white/[0.02] backdrop-blur-md rounded-2xl p-6 border border-white/[0.05] shadow-lg relative overflow-hidden group hover:bg-white/[0.04] transition-all duration-300">
           <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            <Icon name="arrow_upward" className="text-6xl text-red-400" />
+            <Icon name="arrow_downward" className="text-6xl text-red-400" />
           </div>
           <div className="relative z-10">
             <p className="text-sm font-medium text-gray-400 mb-1">Despesas (Mês)</p>
             <h3 className="text-3xl font-bold text-white tracking-tight"><PrivateValue>{formatCurrency(totalExpense)}</PrivateValue></h3>
             <div className="mt-4 flex items-center gap-2 text-xs font-medium text-red-400 bg-red-400/10 w-fit px-2 py-1 rounded-lg">
-              <Icon name="arrow_downward" className="text-sm" />
-              <span>-2% vs mês anterior</span>
+              <Icon name="pending" className="text-sm" />
+              <span>{periodLabel} • <PrivateValue>{formatCurrency(pendingExpenses)}</PrivateValue> pendente</span>
             </div>
           </div>
         </div>
@@ -346,7 +412,7 @@ const Dashboard: React.FC = () => {
                 <p className="text-xs text-gray-400">Receitas vs Despesas</p>
               </div>
             </div>
-            <div className="h-64 mb-8">
+            <div className="h-auto w-full mb-8">
               <IncomeExpenseChart data={monthlyEvolutionData} />
             </div>
           </div>

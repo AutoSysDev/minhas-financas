@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Icon } from './Icon';
+import { useUI } from '../context/UIContext';
 
 interface FloatingActionButtonProps {
     onNewExpense: () => void;
@@ -15,6 +16,7 @@ export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
     onCalculator
 }) => {
     const [isOpen, setIsOpen] = useState(false);
+    const { isAnyModalOpen } = useUI();
 
     const actions = [
         {
@@ -74,8 +76,11 @@ export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
                 />
             )}
 
-            {/* Container do FAB */}
-            <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
+            {/* Container do FAB - Hide on mobile when modal is open */}
+            <div className={`fixed bottom-6 right-6 flex flex-col items-end gap-3 transition-all duration-300 pointer-events-none ${isAnyModalOpen
+                ? 'md:z-50 z-[-1] md:opacity-100 opacity-0'
+                : 'z-50 opacity-100'
+                }`}>
                 {/* Dropdown de ações */}
                 <div
                     className={`flex flex-col gap-2 transition-all duration-300 ease-out ${isOpen
@@ -87,22 +92,22 @@ export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
                         <button
                             key={action.label}
                             onClick={action.onClick}
-                            className={`flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-lg transition-all duration-200 bg-gray-800 border border-teal-500 text-white hover:bg-gray-700 backdrop-blur-md active:scale-95`}
+                            className={`flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-lg transition-all duration-200 bg-[#121820] border border-white/10 text-white hover:border-teal-500/50 hover:shadow-[0_0_15px_-5px_rgba(45,212,191,0.3)] backdrop-blur-md active:scale-95 min-h-[48px] group`}
                             style={{
                                 transitionDelay: isOpen ? `${index * 50}ms` : '0ms'
                             }}
                             aria-label={action.label}
                         >
-                            <Icon name={action.icon} className="text-xl" />
+                            <Icon name={action.icon} className="text-xl text-teal-400 group-hover:text-teal-300 transition-colors" />
                             <span className="font-bold text-sm whitespace-nowrap">{action.label}</span>
                         </button>
                     ))}
                 </div>
 
-                {/* Botão principal */}
+                {/* Botão principal - Minimum touch target 48px */}
                 <button
                     onClick={() => setIsOpen(!isOpen)}
-                    className={`size-16 rounded-full bg-gradient-to-br from-teal-500 to-blue-600 text-white shadow-[0_0_30px_-5px_rgba(45,212,191,0.5)] hover:shadow-[0_0_40px_-5px_rgba(45,212,191,0.7)] hover:scale-110 transition-all duration-300 flex items-center justify-center group active:scale-95 ${isOpen ? 'rotate-45' : 'rotate-0'
+                    className={`pointer-events-auto size-16 min-h-[48px] min-w-[48px] rounded-full bg-gradient-to-br from-teal-500 to-blue-600 text-white shadow-[0_0_30px_-5px_rgba(45,212,191,0.5)] hover:shadow-[0_0_40px_-5px_rgba(45,212,191,0.7)] hover:scale-110 transition-all duration-300 flex items-center justify-center group active:scale-95 ${isOpen ? 'rotate-45' : 'rotate-0'
                         }`}
                     aria-label={isOpen ? 'Fechar menu de ações' : 'Abrir menu de ações'}
                     aria-expanded={isOpen}

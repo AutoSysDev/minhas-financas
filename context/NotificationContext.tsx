@@ -23,6 +23,7 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [settings, setSettings] = useState<NotificationSettings>(DEFAULT_NOTIFICATION_SETTINGS);
     const [loading, setLoading] = useState(false);
+    const [tablesAvailable, setTablesAvailable] = useState({ notifications: true, settings: true });
 
     const unreadCount = notifications.filter(n => !n.isRead).length;
 
@@ -37,7 +38,15 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
                 .order('timestamp', { ascending: false })
                 .limit(50);
 
-            if (error) throw error;
+            if (error) {
+                // Tabela inexistente: desativar chamadas futuras e usar estado local
+                if ((error as any).code === 'PGRST205') {
+                    setTablesAvailable(prev => ({ ...prev, notifications: false }));
+                    setNotifications([]);
+                    return;
+                }
+                throw error;
+            }
 
             if (data) {
                 setNotifications(data.map((n: any) => ({
@@ -54,7 +63,8 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
                 })));
             }
         } catch (error) {
-            console.error('Error fetching notifications:', error);
+            // Falha não bloqueante
+            setNotifications([]);
         } finally {
             setLoading(false);
         }
@@ -69,7 +79,16 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
                 .select('*')
                 .single();
 
-            if (error && error.code !== 'PGRST116') throw error;
+            if (error) {
+                // PGRST116 = No rows found -> cria padrão
+                if ((error as any).code === 'PGRST205') {
+                    // Tabela inexistente: usar padrões locais e desativar persistência
+                    setTablesAvailable(prev => ({ ...prev, settings: false }));
+                    setSettings(DEFAULT_NOTIFICATION_SETTINGS);
+                    return;
+                }
+                if ((error as any).code !== 'PGRST116') throw error;
+            }
 
             if (data) {
                 setSettings({
@@ -91,14 +110,24 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
                     }
                 });
             } else {
-                // Create default settings
-                await supabase.from('notification_settings').insert({
-                    user_id: user.id,
-                    ...DEFAULT_NOTIFICATION_SETTINGS
-                });
+                // Criar padrão apenas se a tabela existir
+                if (tablesAvailable.settings) {
+                    await supabase.from('notification_settings').insert({
+                        user_id: user.id,
+                        bill_reminder_enabled: DEFAULT_NOTIFICATION_SETTINGS.billReminder.enabled,
+                        bill_reminder_days: DEFAULT_NOTIFICATION_SETTINGS.billReminder.daysBeforeDue,
+                        budget_alert_enabled: DEFAULT_NOTIFICATION_SETTINGS.budgetAlert.enabled,
+                        budget_alert_threshold: DEFAULT_NOTIFICATION_SETTINGS.budgetAlert.threshold,
+                        weekly_summary_enabled: DEFAULT_NOTIFICATION_SETTINGS.weeklySummary.enabled,
+                        weekly_summary_day: DEFAULT_NOTIFICATION_SETTINGS.weeklySummary.dayOfWeek,
+                        savings_tips_enabled: DEFAULT_NOTIFICATION_SETTINGS.savingsTips.enabled,
+                        savings_tips_frequency: DEFAULT_NOTIFICATION_SETTINGS.savingsTips.frequency
+                    });
+                }
             }
         } catch (error) {
-            console.error('Error fetching notification settings:', error);
+            // Falha não bloqueante
+            setSettings(DEFAULT_NOTIFICATION_SETTINGS);
         }
     };
 
@@ -109,8 +138,92 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
         }
     }, [user]);
 
+    // Check for scheduled notifications (Client-side fallback/immediate check)
+    useEffect(() => {
+        const checkScheduledNotifications = async () => {
+            if (!user || !tablesAvailable.notifications || loading) return;
+
+            // 1. Bill Reminders (Transactions)
+            if (settings.billReminder.enabled) {
+                const days = settings.billReminder.daysBeforeDue;
+                const targetDate = new Date();
+                targetDate.setDate(targetDate.getDate() + days);
+                const targetDateStr = targetDate.toISOString().split('T')[0];
+
+                try {
+                    const { data: transactions } = await supabase
+                        .from('transactions')
+                        .select('*')
+                        .eq('user_id', user.id)
+                        .in('type', ['EXPENSE', 'INCOME'])
+                        .eq('is_paid', false)
+                        .eq('date', targetDateStr);
+
+                    if (transactions && transactions.length > 0) {
+                        for (const trans of transactions) {
+                            const isExpense = trans.type === 'EXPENSE';
+                            const typeLabel = isExpense ? 'Conta' : 'Receita';
+                            const actionVerb = isExpense ? 'vence' : 'está prevista';
+
+                            // Check duplication
+                            const { data: existing } = await supabase
+                                .from('notifications')
+                                .select('id')
+                                .eq('user_id', user.id)
+                                .eq('type', NotificationType.BILL_REMINDER)
+                                .ilike('message', `%${trans.description}%`)
+                                .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+                                .maybeSingle();
+
+                            if (!existing) {
+                                await addNotification({
+                                    type: NotificationType.BILL_REMINDER,
+                                    title: `${typeLabel} próxima do vencimento`,
+                                    message: `${typeLabel} "${trans.description}" de R$ ${trans.amount} ${actionVerb} em ${days} dia(s) (${trans.date}).`,
+                                    icon: isExpense ? 'receipt_long' : 'payments',
+                                    color: isExpense ? '#ef4444' : '#22c55e',
+                                    priority: 'high',
+                                    actionUrl: '/transactions'
+                                });
+                            }
+                        }
+                    }
+                } catch (err) {
+                    console.error('Error checking transaction reminders:', err);
+                }
+            }
+        };
+
+        if (user && !loading) {
+            // Delay slightly to ensure data is likely consistent
+            const timer = setTimeout(() => {
+                checkScheduledNotifications();
+            }, 5000);
+            return () => clearTimeout(timer);
+        }
+    }, [user, settings, loading, tablesAvailable]);
+
     const addNotification = async (notification: Omit<Notification, 'id' | 'timestamp' | 'isRead'>) => {
         if (!user) return;
+        if (!tablesAvailable.notifications) {
+            // Persistência indisponível: manter local
+            setNotifications(prev => ([
+                {
+                    id: Math.random().toString(36).slice(2),
+                    type: notification.type,
+                    title: notification.title,
+                    message: notification.message,
+                    icon: notification.icon,
+                    color: notification.color,
+                    timestamp: new Date(),
+                    isRead: false,
+                    actionUrl: notification.actionUrl,
+                    priority: notification.priority
+                },
+                ...prev
+            ]));
+            return;
+        }
 
         try {
             const { error } = await supabase.from('notifications').insert({
@@ -133,6 +246,10 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
 
     const markAsRead = async (id: string) => {
         if (!user) return;
+        if (!tablesAvailable.notifications) {
+            setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+            return;
+        }
 
         try {
             const { error } = await supabase
@@ -149,6 +266,10 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
 
     const markAllAsRead = async () => {
         if (!user) return;
+        if (!tablesAvailable.notifications) {
+            setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+            return;
+        }
 
         try {
             const { error } = await supabase
@@ -166,6 +287,10 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
 
     const deleteNotification = async (id: string) => {
         if (!user) return;
+        if (!tablesAvailable.notifications) {
+            setNotifications(prev => prev.filter(n => n.id !== id));
+            return;
+        }
 
         try {
             const { error } = await supabase
@@ -182,6 +307,10 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
 
     const clearAll = async () => {
         if (!user) return;
+        if (!tablesAvailable.notifications) {
+            setNotifications([]);
+            return;
+        }
 
         try {
             const { error } = await supabase
@@ -203,6 +332,7 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
         setSettings(updatedSettings);
 
         try {
+            if (!tablesAvailable.settings) return;
             const { error } = await supabase
                 .from('notification_settings')
                 .upsert({

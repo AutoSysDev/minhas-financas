@@ -5,10 +5,15 @@ import { Modal } from './Modal';
 import { Icon } from './Icon';
 import { Dropdown } from './Dropdown';
 import { useFinance } from '../context/FinanceContext';
+import { useUI } from '../context/UIContext';
 import { TransactionType } from '../types';
+import { useToast } from '../context/ToastContext';
+import { BANKS } from '../constants';
 
 export const FABContainer: React.FC = () => {
-    const { addTransaction, accounts, cards } = useFinance();
+    const { addTransaction, accounts, cards, categories } = useFinance();
+    const { setModalOpen } = useUI();
+    const { toast } = useToast();
     const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
     const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
     const [isIncomeModalOpen, setIsIncomeModalOpen] = useState(false);
@@ -21,7 +26,8 @@ export const FABContainer: React.FC = () => {
         date: new Date().toISOString().split('T')[0],
         category: 'Alimentação',
         accountId: '',
-        cardId: ''
+        cardId: '',
+        isPaid: true
     });
 
     // Estados do formulário de receita
@@ -30,7 +36,8 @@ export const FABContainer: React.FC = () => {
         amount: '',
         date: new Date().toISOString().split('T')[0],
         category: 'Salário',
-        accountId: ''
+        accountId: '',
+        isPaid: true
     });
 
     // Estados do formulário de transferência
@@ -42,9 +49,20 @@ export const FABContainer: React.FC = () => {
         toAccountId: ''
     });
 
+    const handleDateChange = (type: 'expense' | 'income', date: string) => {
+        const today = new Date().toISOString().split('T')[0];
+        const isFuture = date > today;
+
+        if (type === 'expense') {
+            setExpenseForm(prev => ({ ...prev, date, isPaid: !isFuture }));
+        } else {
+            setIncomeForm(prev => ({ ...prev, date, isPaid: !isFuture }));
+        }
+    };
+
     const handleExpenseSubmit = async () => {
         if (!expenseForm.description || !expenseForm.amount) {
-            alert('Preencha todos os campos obrigatórios');
+            toast.warning('Preencha todos os campos obrigatórios');
             return;
         }
 
@@ -56,7 +74,7 @@ export const FABContainer: React.FC = () => {
             category: expenseForm.category,
             accountId: expenseForm.accountId || undefined,
             cardId: expenseForm.cardId || undefined,
-            isPaid: true
+            isPaid: expenseForm.isPaid
         });
 
         setExpenseForm({
@@ -65,14 +83,15 @@ export const FABContainer: React.FC = () => {
             date: new Date().toISOString().split('T')[0],
             category: 'Alimentação',
             accountId: '',
-            cardId: ''
+            cardId: '',
+            isPaid: true
         });
-        setIsExpenseModalOpen(false);
+        closeExpenseModal();
     };
 
     const handleIncomeSubmit = async () => {
         if (!incomeForm.description || !incomeForm.amount || !incomeForm.accountId) {
-            alert('Preencha todos os campos obrigatórios');
+            toast.warning('Preencha todos os campos obrigatórios');
             return;
         }
 
@@ -83,7 +102,7 @@ export const FABContainer: React.FC = () => {
             type: TransactionType.INCOME,
             category: incomeForm.category,
             accountId: incomeForm.accountId,
-            isPaid: true
+            isPaid: incomeForm.isPaid
         });
 
         setIncomeForm({
@@ -91,19 +110,20 @@ export const FABContainer: React.FC = () => {
             amount: '',
             date: new Date().toISOString().split('T')[0],
             category: 'Salário',
-            accountId: ''
+            accountId: '',
+            isPaid: true
         });
-        setIsIncomeModalOpen(false);
+        closeIncomeModal();
     };
 
     const handleTransferSubmit = async () => {
         if (!transferForm.description || !transferForm.amount || !transferForm.fromAccountId || !transferForm.toAccountId) {
-            alert('Preencha todos os campos obrigatórios');
+            toast.warning('Preencha todos os campos obrigatórios');
             return;
         }
 
         if (transferForm.fromAccountId === transferForm.toAccountId) {
-            alert('As contas de origem e destino devem ser diferentes');
+            toast.warning('As contas de origem e destino devem ser diferentes');
             return;
         }
 
@@ -124,22 +144,63 @@ export const FABContainer: React.FC = () => {
             fromAccountId: '',
             toAccountId: ''
         });
+        closeTransferModal();
+    };
+
+    // Helper functions to manage modal state
+    const openCalculator = () => {
+        setIsCalculatorOpen(true);
+        setModalOpen(true);
+    };
+
+    const closeCalculator = () => {
+        setIsCalculatorOpen(false);
+        setModalOpen(false);
+    };
+
+    const openExpenseModal = () => {
+        setIsExpenseModalOpen(true);
+        setModalOpen(true);
+    };
+
+    const closeExpenseModal = () => {
+        setIsExpenseModalOpen(false);
+        setModalOpen(false);
+    };
+
+    const openIncomeModal = () => {
+        setIsIncomeModalOpen(true);
+        setModalOpen(true);
+    };
+
+    const closeIncomeModal = () => {
+        setIsIncomeModalOpen(false);
+        setModalOpen(false);
+    };
+
+    const openTransferModal = () => {
+        setIsTransferModalOpen(true);
+        setModalOpen(true);
+    };
+
+    const closeTransferModal = () => {
         setIsTransferModalOpen(false);
+        setModalOpen(false);
     };
 
     return (
         <>
             <FloatingActionButton
-                onCalculator={() => setIsCalculatorOpen(true)}
-                onNewExpense={() => setIsExpenseModalOpen(true)}
-                onNewIncome={() => setIsIncomeModalOpen(true)}
-                onNewTransfer={() => setIsTransferModalOpen(true)}
+                onCalculator={openCalculator}
+                onNewExpense={openExpenseModal}
+                onNewIncome={openIncomeModal}
+                onNewTransfer={openTransferModal}
             />
 
-            <Calculator isOpen={isCalculatorOpen} onClose={() => setIsCalculatorOpen(false)} />
+            <Calculator isOpen={isCalculatorOpen} onClose={closeCalculator} />
 
             {/* Modal de Nova Despesa */}
-            <Modal isOpen={isExpenseModalOpen} onClose={() => setIsExpenseModalOpen(false)} title="Nova Despesa">
+            <Modal isOpen={isExpenseModalOpen} onClose={closeExpenseModal} title="Nova Despesa">
                 <div className="flex flex-col gap-4">
                     <div>
                         <label className="block text-sm font-medium text-gray-300 mb-2">Descrição *</label>
@@ -169,7 +230,7 @@ export const FABContainer: React.FC = () => {
                         <input
                             type="date"
                             value={expenseForm.date}
-                            onChange={(e) => setExpenseForm({ ...expenseForm, date: e.target.value })}
+                            onChange={(e) => handleDateChange('expense', e.target.value)}
                             className="w-full px-4 py-3 bg-white/[0.05] border border-white/[0.1] rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
                         />
                     </div>
@@ -177,14 +238,7 @@ export const FABContainer: React.FC = () => {
                     <div>
                         <label className="block text-sm font-medium text-gray-300 mb-2">Categoria</label>
                         <Dropdown
-                            options={[
-                                { label: 'Alimentação', value: 'Alimentação' },
-                                { label: 'Transporte', value: 'Transporte' },
-                                { label: 'Saúde', value: 'Saúde' },
-                                { label: 'Educação', value: 'Educação' },
-                                { label: 'Lazer', value: 'Lazer' },
-                                { label: 'Outros', value: 'Outros' }
-                            ]}
+                            options={categories.filter(c => c.type === 'expense').map(c => ({ label: c.name, value: c.name }))}
                             value={expenseForm.category}
                             onChange={(value) => setExpenseForm({ ...expenseForm, category: value })}
                         />
@@ -193,7 +247,10 @@ export const FABContainer: React.FC = () => {
                     <div>
                         <label className="block text-sm font-medium text-gray-300 mb-2">Conta</label>
                         <Dropdown
-                            options={accounts.map(a => ({ label: a.name, value: a.id }))}
+                            options={accounts.map(a => {
+                                const bank = BANKS.find(b => b.name === a.bankName);
+                                return { label: a.name, value: a.id, logo: bank?.logo };
+                            })}
                             value={expenseForm.accountId}
                             onChange={(value) => setExpenseForm({ ...expenseForm, accountId: value })}
                             placeholder="Selecione uma conta"
@@ -203,11 +260,34 @@ export const FABContainer: React.FC = () => {
                     <div>
                         <label className="block text-sm font-medium text-gray-300 mb-2">Cartão (opcional)</label>
                         <Dropdown
-                            options={cards.map(c => ({ label: c.name, value: c.id }))}
+                            options={cards.map(c => {
+                                let logo = undefined;
+                                if (c.linkedAccountId) {
+                                    const linkedAccount = accounts.find(a => a.id === c.linkedAccountId);
+                                    if (linkedAccount) {
+                                        const bank = BANKS.find(b => b.name === linkedAccount.bankName);
+                                        logo = bank?.logo;
+                                    }
+                                }
+                                return { label: c.name, value: c.id, logo };
+                            })}
                             value={expenseForm.cardId}
                             onChange={(value) => setExpenseForm({ ...expenseForm, cardId: value })}
                             placeholder="Selecione um cartão"
                         />
+                    </div>
+
+                    <div className="flex items-center gap-3 p-3 bg-white/[0.05] rounded-xl border border-white/[0.1]">
+                        <input
+                            type="checkbox"
+                            id="expense-paid"
+                            checked={expenseForm.isPaid}
+                            onChange={(e) => setExpenseForm({ ...expenseForm, isPaid: e.target.checked })}
+                            className="w-5 h-5 rounded border-gray-600 text-teal-500 focus:ring-teal-500 bg-gray-700"
+                        />
+                        <label htmlFor="expense-paid" className="text-sm font-medium text-white cursor-pointer select-none">
+                            Despesa já paga?
+                        </label>
                     </div>
 
                     <button
@@ -220,7 +300,7 @@ export const FABContainer: React.FC = () => {
             </Modal>
 
             {/* Modal de Nova Receita */}
-            <Modal isOpen={isIncomeModalOpen} onClose={() => setIsIncomeModalOpen(false)} title="Nova Receita">
+            <Modal isOpen={isIncomeModalOpen} onClose={closeIncomeModal} title="Nova Receita">
                 <div className="flex flex-col gap-4">
                     <div>
                         <label className="block text-sm font-medium text-gray-300 mb-2">Descrição *</label>
@@ -250,7 +330,7 @@ export const FABContainer: React.FC = () => {
                         <input
                             type="date"
                             value={incomeForm.date}
-                            onChange={(e) => setIncomeForm({ ...incomeForm, date: e.target.value })}
+                            onChange={(e) => handleDateChange('income', e.target.value)}
                             className="w-full px-4 py-3 bg-white/[0.05] border border-white/[0.1] rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
                         />
                     </div>
@@ -258,12 +338,7 @@ export const FABContainer: React.FC = () => {
                     <div>
                         <label className="block text-sm font-medium text-gray-300 mb-2">Categoria</label>
                         <Dropdown
-                            options={[
-                                { label: 'Salário', value: 'Salário' },
-                                { label: 'Freelance', value: 'Freelance' },
-                                { label: 'Investimentos', value: 'Investimentos' },
-                                { label: 'Outros', value: 'Outros' }
-                            ]}
+                            options={categories.filter(c => c.type === 'income').map(c => ({ label: c.name, value: c.name }))}
                             value={incomeForm.category}
                             onChange={(value) => setIncomeForm({ ...incomeForm, category: value })}
                         />
@@ -272,11 +347,27 @@ export const FABContainer: React.FC = () => {
                     <div>
                         <label className="block text-sm font-medium text-gray-300 mb-2">Conta *</label>
                         <Dropdown
-                            options={accounts.map(a => ({ label: a.name, value: a.id }))}
+                            options={accounts.map(a => {
+                                const bank = BANKS.find(b => b.name === a.bankName);
+                                return { label: a.name, value: a.id, logo: bank?.logo };
+                            })}
                             value={incomeForm.accountId}
                             onChange={(value) => setIncomeForm({ ...incomeForm, accountId: value })}
                             placeholder="Selecione uma conta"
                         />
+                    </div>
+
+                    <div className="flex items-center gap-3 p-3 bg-white/[0.05] rounded-xl border border-white/[0.1]">
+                        <input
+                            type="checkbox"
+                            id="income-paid"
+                            checked={incomeForm.isPaid}
+                            onChange={(e) => setIncomeForm({ ...incomeForm, isPaid: e.target.checked })}
+                            className="w-5 h-5 rounded border-gray-600 text-teal-500 focus:ring-teal-500 bg-gray-700"
+                        />
+                        <label htmlFor="income-paid" className="text-sm font-medium text-white cursor-pointer select-none">
+                            Receita já recebida?
+                        </label>
                     </div>
 
                     <button
@@ -289,7 +380,7 @@ export const FABContainer: React.FC = () => {
             </Modal>
 
             {/* Modal de Nova Transferência */}
-            <Modal isOpen={isTransferModalOpen} onClose={() => setIsTransferModalOpen(false)} title="Nova Transferência">
+            <Modal isOpen={isTransferModalOpen} onClose={closeTransferModal} title="Nova Transferência">
                 <div className="flex flex-col gap-4">
                     <div>
                         <label className="block text-sm font-medium text-gray-300 mb-2">Descrição *</label>
@@ -327,7 +418,10 @@ export const FABContainer: React.FC = () => {
                     <div>
                         <label className="block text-sm font-medium text-gray-300 mb-2">Conta de Origem *</label>
                         <Dropdown
-                            options={accounts.map(a => ({ label: a.name, value: a.id }))}
+                            options={accounts.map(a => {
+                                const bank = BANKS.find(b => b.name === a.bankName);
+                                return { label: a.name, value: a.id, logo: bank?.logo };
+                            })}
                             value={transferForm.fromAccountId}
                             onChange={(value) => setTransferForm({ ...transferForm, fromAccountId: value })}
                             placeholder="Selecione a conta de origem"
@@ -337,7 +431,10 @@ export const FABContainer: React.FC = () => {
                     <div>
                         <label className="block text-sm font-medium text-gray-300 mb-2">Conta de Destino *</label>
                         <Dropdown
-                            options={accounts.map(a => ({ label: a.name, value: a.id }))}
+                            options={accounts.map(a => {
+                                const bank = BANKS.find(b => b.name === a.bankName);
+                                return { label: a.name, value: a.id, logo: bank?.logo };
+                            })}
                             value={transferForm.toAccountId}
                             onChange={(value) => setTransferForm({ ...transferForm, toAccountId: value })}
                             placeholder="Selecione a conta de destino"

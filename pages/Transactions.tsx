@@ -1,33 +1,105 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Icon } from '../components/Icon';
+import { PrivateValue } from '../components/PrivateValue';
 import { Dropdown } from '../components/Dropdown';
+import { Modal } from '../components/Modal';
+import { NewTransactionModal } from '../components/NewTransactionModal';
+import { BankImportModal } from '../components/BankImportModal';
+import { TransactionRow, TransactionCard } from '../components/TransactionItem';
 import { useFinance } from '../context/FinanceContext';
+import { useTransactions, useInfiniteTransactions, useTransactionSummary, useCreateTransaction, useUpdateTransaction, useDeleteTransaction } from '../hooks/useTransactions';
 import { Transaction, TransactionType } from '../types';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { formatCurrency, formatDate } from '../utils/helpers';
+import { useToast } from '../context/ToastContext';
+import { TransactionListSkeleton } from '../components/TransactionListSkeleton';
+import { FiscalManager } from '../components/FiscalManager';
 
 const Transactions: React.FC = () => {
-  const { transactions, deleteTransaction, addTransaction, updateTransaction, cards, accounts } = useFinance();
+  const { cards, accounts } = useFinance();
+
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { toast } = useToast();
 
   const [isNewModalOpen, setIsNewModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [viewingTransaction, setViewingTransaction] = useState<Transaction | null>(null);
 
   // OCR State
   const [isProcessing, setIsProcessing] = useState(false);
   const [ocrData, setOcrData] = useState<Partial<Transaction & { transactionId?: string; receiver?: string }> | null>(null);
 
-  // Filtros
+  // Filtros de Estado
   const [currentDate, setCurrentDate] = useState(new Date());
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'income' | 'expense'>('all');
   const [sortBy, setSortBy] = useState<'date-desc' | 'date-asc' | 'amount-desc' | 'amount-asc'>('date-desc');
-  const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
-
-  // Novos Filtros
   const [selectedCategory, setSelectedCategory] = useState('Todas');
   const [dateRange, setDateRange] = useState<{ start: string; end: string }>({ start: '', end: '' });
+  const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
+
+  // 1. Calcular Datas do Período
+  const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).toISOString().split('T')[0];
+  const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).toISOString().split('T')[0];
+
+  const effectiveStartDate = dateRange.start || startOfMonth;
+  const effectiveEndDate = dateRange.end || endOfMonth;
+
+  // 2. Filtros para Query (Servidor)
+  const queryFilters = {
+    startDate: effectiveStartDate,
+    endDate: effectiveEndDate,
+    type: filterType === 'all' ? undefined : filterType,
+    category: selectedCategory,
+    searchTerm: searchTerm,
+    sortBy: sortBy
+  };
+
+  // 3. Hooks de Dados
+  const {
+    data: infiniteData,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading: isLoadingTransactions
+  } = useInfiniteTransactions(queryFilters);
+
+  const { data: summaryData } = useTransactionSummary({
+    startDate: effectiveStartDate,
+    endDate: effectiveEndDate
+  });
+
+  const transactions = infiniteData?.pages.flat() || [];
+  const totalIncome = summaryData?.totalIncome || 0;
+  const totalExpense = summaryData?.totalExpense || 0;
+  const balance = totalIncome - totalExpense;
+
+  const createTransactionMutation = useCreateTransaction();
+  const updateTransactionMutation = useUpdateTransaction();
+  const deleteTransactionMutation = useDeleteTransaction();
+
+  // Scroll Infinito Observer
+  const observerTarget = useRef(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+          fetchNextPage();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (observerTarget.current) {
+      observer.observe(observerTarget.current);
+    }
+
+    return () => {
+      if (observerTarget.current) observer.unobserve(observerTarget.current);
+    };
+  }, [observerTarget, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   useEffect(() => {
     if (searchParams.get('action') === 'new') {
@@ -76,8 +148,15 @@ const Transactions: React.FC = () => {
   const handleDelete = (e: React.MouseEvent | React.TouchEvent, id: string) => {
     e.stopPropagation();
     if (window.confirm("Deseja realmente excluir esta transação?")) {
-      deleteTransaction(id);
-      setViewingTransaction(null);
+      deleteTransactionMutation.mutate(id, {
+        onSuccess: () => {
+          toast.success("Transação excluída com sucesso!");
+          setViewingTransaction(null);
+        },
+        onError: (error) => {
+          toast.error("Erro ao excluir transação: " + error.message);
+        }
+      });
     }
   };
 
@@ -109,19 +188,27 @@ const Transactions: React.FC = () => {
   };
 
   const handleSaveNew = async (t: Omit<Transaction, 'id'> | Omit<Transaction, 'id'>[]) => {
-    if (Array.isArray(t)) {
-      // Bulk Create (Recorrência)
-      for (const transaction of t) {
-        await addTransaction(transaction);
+    try {
+      if (Array.isArray(t)) {
+        // Bulk Create (Recorrência) - Not supported by single mutation directly efficiently without Promise.all
+        // But useCreateTransaction expects single object.
+        // We can loop here.
+        const promises = t.map(transaction => createTransactionMutation.mutateAsync(transaction));
+        await Promise.all(promises);
+        toast.success(`${t.length} transações criadas!`);
+      } else if (ocrData && ocrData.transactionId && transactions.find(tr => tr.id === ocrData.transactionId)) {
+        // Edit Mode
+        await updateTransactionMutation.mutateAsync({ id: ocrData.transactionId, updates: t });
+        toast.success("Transação atualizada!");
+      } else {
+        // Create Mode
+        await createTransactionMutation.mutateAsync(t);
+        toast.success("Transação criada!");
       }
-    } else if (ocrData && ocrData.transactionId && transactions.find(tr => tr.id === ocrData.transactionId)) {
-      // Edit Mode
-      updateTransaction(ocrData.transactionId, t);
-    } else {
-      // Create Mode
-      addTransaction(t);
+      handleCloseNewModal();
+    } catch (error: any) {
+      toast.error("Erro ao salvar: " + error.message);
     }
-    handleCloseNewModal();
   };
 
   // --- Lógica OCR (Scan & Pay) ---
@@ -292,12 +379,12 @@ const Transactions: React.FC = () => {
         navigate('/transactions?action=new');
 
       } else {
-        alert('Não foi possível ler o texto da imagem. Tente uma foto mais clara.');
+        toast.error('Não foi possível ler o texto da imagem. Tente uma foto mais clara.');
       }
 
     } catch (error) {
       console.error("Erro no OCR:", error);
-      alert("Erro ao processar imagem. Verifique sua conexão.");
+      toast.error("Erro ao processar imagem. Verifique sua conexão.");
     } finally {
       setIsProcessing(false);
     }
@@ -328,48 +415,8 @@ const Transactions: React.FC = () => {
     return new Date();
   };
 
-  // --- Totais do Mês (Independentes do Filtro de Tipo) ---
-  const monthlyTransactions = transactions.filter(t => {
-    const tDate = getTransactionDate(t.date);
-    return tDate.getMonth() === currentDate.getMonth() && tDate.getFullYear() === currentDate.getFullYear();
-  });
-
-  const totalIncome = monthlyTransactions
-    .filter(t => t.type === TransactionType.INCOME)
-    .reduce((acc, t) => acc + t.amount, 0);
-
-  const totalExpense = monthlyTransactions
-    .filter(t => t.type === TransactionType.EXPENSE)
-    .reduce((acc, t) => acc + t.amount, 0);
-
-  const balance = totalIncome - totalExpense;
-
-  // --- Lista Filtrada (Aplica busca e filtro de tipo) ---
-  const filteredTransactions = monthlyTransactions.filter(t => {
-    const matchesSearch =
-      searchTerm === '' ||
-      t.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      t.category.toLowerCase().includes(searchTerm.toLowerCase());
-
-    const matchesType =
-      filterType === 'all' ||
-      (filterType === 'income' && t.type === TransactionType.INCOME) ||
-      (filterType === 'expense' && t.type === TransactionType.EXPENSE);
-
-    const matchesCategory = selectedCategory === 'Todas' || t.category === selectedCategory;
-
-    const matchesDateRange =
-      (!dateRange.start || t.date >= dateRange.start) &&
-      (!dateRange.end || t.date <= dateRange.end);
-
-    return matchesSearch && matchesType && matchesCategory && matchesDateRange;
-  }).sort((a, b) => {
-    if (sortBy === 'date-desc') return new Date(b.date).getTime() - new Date(a.date).getTime();
-    if (sortBy === 'date-asc') return new Date(a.date).getTime() - new Date(b.date).getTime();
-    if (sortBy === 'amount-desc') return b.amount - a.amount;
-    if (sortBy === 'amount-asc') return a.amount - b.amount;
-    return 0;
-  });
+  // Versão legada de filtragem local removida em favor da filtragem no servidor
+  const filteredTransactions = transactions;
 
   return (
     <div className="flex flex-col gap-6 md:gap-8 animate-fade-in relative pb-20 md:pb-0">
@@ -407,6 +454,15 @@ const Transactions: React.FC = () => {
             >
               <Icon name="document_scanner" className="text-xl md:text-2xl" />
             </label>
+
+            {/* Botão Importar */}
+            <button
+              onClick={() => setIsImportModalOpen(true)}
+              className="flex size-10 md:size-11 cursor-pointer items-center justify-center overflow-hidden rounded-lg bg-white/[0.05] border border-white/[0.1] text-gray-400 hover:bg-white/[0.1] hover:text-teal-400 transition-colors"
+              title="Importar Extrato (PDF, OFX, XLSX)"
+            >
+              <Icon name="upload_file" className="text-xl md:text-2xl" />
+            </button>
 
             <button
               onClick={handleOpenNewModal}
@@ -447,21 +503,21 @@ const Transactions: React.FC = () => {
             className={`p-3 md:p-4 rounded-xl border text-center cursor-pointer transition-all active:scale-95 backdrop-blur-md ${filterType === 'income' ? 'bg-green-500/10 border-green-500/50 shadow-[0_0_15px_-5px_rgba(34,197,94,0.3)]' : 'bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.04]'}`}
           >
             <p className="text-xs text-green-400 font-bold uppercase mb-1">Receitas</p>
-            <p className="text-sm md:text-lg font-black text-green-300">{formatCurrency(totalIncome)}</p>
+            <p className="text-sm md:text-lg font-black text-green-300"><PrivateValue>{formatCurrency(totalIncome)}</PrivateValue></p>
           </div>
           <div
             onClick={() => setFilterType(filterType === 'expense' ? 'all' : 'expense')}
             className={`p-3 md:p-4 rounded-xl border text-center cursor-pointer transition-all active:scale-95 backdrop-blur-md ${filterType === 'expense' ? 'bg-red-500/10 border-red-500/50 shadow-[0_0_15px_-5px_rgba(239,68,68,0.3)]' : 'bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.04]'}`}
           >
             <p className="text-xs text-red-400 font-bold uppercase mb-1">Despesas</p>
-            <p className="text-sm md:text-lg font-black text-red-300">{formatCurrency(totalExpense)}</p>
+            <p className="text-sm md:text-lg font-black text-red-300"><PrivateValue>{formatCurrency(totalExpense)}</PrivateValue></p>
           </div>
           <div
             onClick={() => setFilterType('all')}
             className={`p-3 md:p-4 rounded-xl border text-center cursor-pointer transition-all active:scale-95 backdrop-blur-md ${filterType === 'all' ? 'bg-blue-500/10 border-blue-500/50 shadow-[0_0_15px_-5px_rgba(59,130,246,0.3)]' : 'bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.04]'}`}
           >
             <p className="text-xs text-gray-400 font-bold uppercase mb-1">Balanço</p>
-            <p className={`text-sm md:text-lg font-black ${balance >= 0 ? 'text-blue-300' : 'text-red-300'}`}>{formatCurrency(balance)}</p>
+            <p className={`text-sm md:text-lg font-black ${balance >= 0 ? 'text-blue-300' : 'text-red-300'}`}><PrivateValue>{formatCurrency(balance)}</PrivateValue></p>
           </div>
         </div>
       </div>
@@ -507,22 +563,22 @@ const Transactions: React.FC = () => {
               className="w-full"
             />
           </div>
-          <div className="flex items-center gap-2 bg-white/[0.05] border border-white/[0.1] rounded-lg px-3 py-2">
-            <span className="text-xs text-gray-400">De:</span>
+          <div className="flex flex-1 sm:flex-none items-center gap-2 bg-white/[0.05] border border-white/[0.1] rounded-xl px-3 py-2 min-w-[140px] transition-all focus-within:border-teal-500/50 focus-within:bg-white/[0.08]">
+            <span className="text-[10px] font-black text-gray-500 uppercase tracking-wider">De:</span>
             <input
               type="date"
               value={dateRange.start}
               onChange={e => setDateRange(prev => ({ ...prev, start: e.target.value }))}
-              className="bg-transparent text-white text-sm outline-none [&::-webkit-calendar-picker-indicator]:invert"
+              className="bg-transparent text-white text-xs outline-none [&::-webkit-calendar-picker-indicator]:invert cursor-pointer w-full font-medium"
             />
           </div>
-          <div className="flex items-center gap-2 bg-white/[0.05] border border-white/[0.1] rounded-lg px-3 py-2">
-            <span className="text-xs text-gray-400">Até:</span>
+          <div className="flex flex-1 sm:flex-none items-center gap-2 bg-white/[0.05] border border-white/[0.1] rounded-xl px-3 py-2 min-w-[140px] transition-all focus-within:border-teal-500/50 focus-within:bg-white/[0.08]">
+            <span className="text-[10px] font-black text-gray-500 uppercase tracking-wider">Até:</span>
             <input
               type="date"
               value={dateRange.end}
               onChange={e => setDateRange(prev => ({ ...prev, end: e.target.value }))}
-              className="bg-transparent text-white text-sm outline-none [&::-webkit-calendar-picker-indicator]:invert"
+              className="bg-transparent text-white text-xs outline-none [&::-webkit-calendar-picker-indicator]:invert cursor-pointer w-full font-medium"
             />
           </div>
           {(dateRange.start || dateRange.end || selectedCategory !== 'Todas') && (
@@ -538,85 +594,83 @@ const Transactions: React.FC = () => {
 
       {/* Lista de Transações */}
       <div className="bg-white/[0.02] backdrop-blur-md rounded-xl shadow-sm border border-white/[0.05] overflow-hidden min-h-[300px]">
-
-        {/* Versão Desktop */}
-        <div className="hidden md:block overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-white/[0.05] text-gray-400 font-medium border-b border-white/[0.05]">
-              <tr>
-                <th className="px-6 py-3">Descrição</th>
-                <th className="px-6 py-3">Categoria</th>
-                <th className="px-6 py-3">Data</th>
-                <th className="px-6 py-3 text-right">Valor</th>
-                <th className="px-6 py-3 text-center">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/[0.05]">
-              {filteredTransactions.length > 0 ? filteredTransactions.map((t) => (
-                <tr
-                  key={t.id}
-                  className="hover:bg-white/[0.02] transition-colors group"
-                >
-                  <td
-                    onClick={() => handleTransactionClick(t)}
-                    className="px-6 py-4 font-medium text-white cursor-pointer"
-                  >
-                    {t.description}
-                    {t.installmentNumber && t.installments && (
-                      <span className="ml-2 text-[10px] bg-white/10 px-1.5 py-0.5 rounded text-gray-300">
-                        {t.installmentNumber}/{t.installments}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 text-gray-300">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-white/10 text-gray-200">
-                      {t.category}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-gray-400">{formatDate(t.date)}</td>
-                  <td className={`px-6 py-4 text-right font-semibold ${t.type === TransactionType.INCOME ? 'text-green-400' : 'text-red-400'}`}>
-                    {t.type === TransactionType.INCOME ? '+' : '-'} {formatCurrency(t.amount)}
-                  </td>
-                  <td className="px-6 py-4 text-center">
-                    {t.isPaid ? (
-                      <Icon name="check_circle" className="text-green-500 text-lg" />
-                    ) : (
-                      <Icon name="pending" className="text-gray-400 text-lg" />
-                    )}
-                  </td>
-                </tr>
-              )) : (
-                <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <Icon name="event_busy" className="text-3xl opacity-50" />
-                      <p>Nenhuma transação encontrada.</p>
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Versão Mobile */}
-        <div className="md:hidden flex flex-col divide-y divide-white/[0.05]">
-          {filteredTransactions.length > 0 ? filteredTransactions.map((t) => (
-            <SwipeableTransactionItem
-              key={t.id}
-              transaction={t}
-              onClick={() => handleTransactionClick(t)}
-              onEdit={(e) => handleEdit(e, t.id)}
-              onDuplicate={(e) => handleDuplicate(e, t.id)}
-              onDelete={(e) => handleDelete(e, t.id)}
-            />
-          )) : (
-            <div className="p-12 text-center text-gray-500">
-              <Icon name="event_busy" className="text-3xl opacity-50 mb-2" />
-              <p>Nenhuma transação encontrada.</p>
+        {isLoadingTransactions ? (
+          <div className="p-4">
+            <TransactionListSkeleton />
+          </div>
+        ) : (
+          <>
+            {/* Versão Desktop */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-white/[0.05] text-gray-400 font-medium border-b border-white/[0.05]">
+                  <tr>
+                    <th className="px-6 py-3">Descrição</th>
+                    <th className="px-6 py-3">Categoria</th>
+                    <th className="px-6 py-3">Data</th>
+                    <th className="px-6 py-3 text-right">Valor</th>
+                    <th className="px-6 py-3 text-center">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/[0.05]">
+                  {filteredTransactions.length > 0 ? filteredTransactions.map((t) => (
+                    <TransactionRow
+                      key={t.id}
+                      transaction={t}
+                      onClick={() => handleTransactionClick(t)}
+                    />
+                  )) : (
+                    <tr>
+                      <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Icon name="event_busy" className="text-3xl opacity-50" />
+                          <p>Nenhuma transação encontrada.</p>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  {/* Elemento para scroll infinito */}
+                  <tr ref={observerTarget} className="h-4">
+                    <td colSpan={5}>
+                      {isFetchingNextPage && (
+                        <div className="flex justify-center p-4">
+                          <div className="size-6 border-2 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
-          )}
-        </div>
+
+            {/* Versão Mobile */}
+            <div className="md:hidden flex flex-col divide-y divide-white/[0.05]">
+              {filteredTransactions.length > 0 ? filteredTransactions.map((t) => (
+                <TransactionCard
+                  key={t.id}
+                  transaction={t}
+                  onClick={() => handleTransactionClick(t)}
+                  onEdit={(e) => handleEdit(e, t.id)}
+                  onDuplicate={(e) => handleDuplicate(e, t.id)}
+                  onDelete={(e) => handleDelete(e, t.id)}
+                />
+              )) : (
+                <div className="p-12 text-center text-gray-500">
+                  <Icon name="event_busy" className="text-3xl opacity-50 mb-2" />
+                  <p>Nenhuma transação encontrada.</p>
+                </div>
+              )}
+              {/* Elemento para scroll infinito */}
+              <div ref={observerTarget} className="h-4">
+                {isFetchingNextPage && (
+                  <div className="flex justify-center p-4">
+                    <div className="size-6 border-2 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {isNewModalOpen && (
@@ -633,8 +687,24 @@ const Transactions: React.FC = () => {
         <DetailsTransactionModal
           transaction={viewingTransaction}
           onClose={() => setViewingTransaction(null)}
-          onDelete={(id) => { deleteTransaction(id); setViewingTransaction(null); }}
+          onDelete={(id) => {
+            deleteTransactionMutation.mutate(id, {
+              onSuccess: () => {
+                toast.success("Transação excluída!");
+                setViewingTransaction(null);
+              },
+              onError: (error) => toast.error("Erro ao excluir: " + error.message)
+            });
+          }}
           onDuplicate={(id) => { handleDuplicate({ stopPropagation: () => { } } as any, id); setViewingTransaction(null); }}
+        />
+      )}
+
+      {isImportModalOpen && (
+        <BankImportModal
+          isOpen={isImportModalOpen}
+          onClose={() => setIsImportModalOpen(false)}
+          accounts={accounts}
         />
       )}
 
@@ -651,394 +721,9 @@ const Transactions: React.FC = () => {
 
 // --- Subcomponents ---
 
-const SwipeableTransactionItem: React.FC<{
-  transaction: Transaction;
-  onClick: () => void;
-  onEdit: (e: React.TouchEvent | React.MouseEvent) => void;
-  onDuplicate: (e: React.TouchEvent | React.MouseEvent) => void;
-  onDelete: (e: React.TouchEvent | React.MouseEvent) => void;
-}> = ({ transaction: t, onClick, onEdit, onDuplicate, onDelete }) => {
-  const [translateX, setTranslateX] = useState(0);
-  const startX = useRef<number | null>(null);
-  const isDragging = useRef(false);
-  const SWIPE_THRESHOLD = -80;
-  const MAX_SWIPE = -210;
 
-  const onTouchStart = (e: React.TouchEvent) => {
-    startX.current = e.targetTouches[0].clientX;
-    isDragging.current = true;
-  };
 
-  const onTouchMove = (e: React.TouchEvent) => {
-    if (!isDragging.current || startX.current === null) return;
-    const currentX = e.targetTouches[0].clientX;
-    const diff = currentX - startX.current;
 
-    if (diff < 0 && diff > (MAX_SWIPE - 20)) {
-      setTranslateX(diff);
-    } else if (diff > 0 && translateX < 0) {
-      setTranslateX(Math.min(0, translateX + diff));
-    }
-  };
-
-  const onTouchEnd = () => {
-    isDragging.current = false;
-    startX.current = null;
-    if (translateX < SWIPE_THRESHOLD) {
-      setTranslateX(MAX_SWIPE);
-    } else {
-      setTranslateX(0);
-    }
-  };
-
-  return (
-    <div className="relative overflow-hidden select-none h-[76px]">
-      <div className="absolute inset-y-0 right-0 w-[210px] flex z-0">
-        <button onClick={onEdit} className="flex-1 bg-blue-600 text-white flex items-center justify-center active:bg-blue-700">
-          <Icon name="edit" />
-        </button>
-        <button onClick={onDuplicate} className="flex-1 bg-gray-600 text-white flex items-center justify-center active:bg-gray-700">
-          <Icon name="content_copy" />
-        </button>
-        <button onClick={onDelete} className="flex-1 bg-red-600 text-white flex items-center justify-center active:bg-red-700">
-          <Icon name="delete" />
-        </button>
-      </div>
-
-      <div
-        className="relative z-10 bg-[#0f1216] w-full h-full flex items-center justify-between p-3 transition-transform duration-200 ease-out active:scale-[0.98]"
-        style={{ transform: `translateX(${translateX}px)` }}
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        onTouchEnd={onTouchEnd}
-        onClick={() => { if (translateX === 0) onClick(); else setTranslateX(0); }}
-      >
-        <div className="flex items-center gap-3 overflow-hidden">
-          <div className={`flex-shrink-0 flex h-10 w-10 items-center justify-center rounded-full ${t.type === TransactionType.INCOME ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
-            <Icon name={t.type === TransactionType.INCOME ? 'trending_up' : 'shopping_cart'} className="text-xl" />
-          </div>
-          <div className="flex flex-col min-w-0 gap-0.5">
-            <p className="font-bold text-sm text-white truncate leading-tight">
-              {t.description}
-              {t.installmentNumber && t.installments && (
-                <span className="ml-1 font-normal text-xs opacity-60">({t.installmentNumber}/{t.installments})</span>
-              )}
-            </p>
-            <div className="flex items-center gap-2 text-[11px] text-gray-400 leading-tight">
-              <span className="truncate max-w-[80px]">{t.category}</span>
-              <span className="w-1 h-1 rounded-full bg-gray-600"></span>
-              <span>{formatDate(t.date)}</span>
-            </div>
-          </div>
-        </div>
-        <div className="flex flex-col items-end flex-shrink-0 ml-2 gap-1">
-          <p className={`font-extrabold text-sm ${t.type === TransactionType.INCOME ? 'text-green-400' : 'text-red-400'}`}>
-            {t.type === TransactionType.INCOME ? '+' : '-'} {formatCurrency(Math.abs(t.amount)).replace('R$', '')}
-          </p>
-          {t.isPaid && <Icon name="check_circle" className="text-green-500 text-base" />}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const NewTransactionModal: React.FC<{
-  onClose: () => void;
-  onSave: (t: Omit<Transaction, 'id'> | Omit<Transaction, 'id'>[]) => void;
-  cards: any[];
-  accounts: any[];
-  initialData?: Partial<Transaction & { transactionId?: string; receiver?: string }> | null;
-}> = ({ onClose, onSave, cards, accounts, initialData }) => {
-  const [tab, setTab] = useState<'expense' | 'income' | 'credit'>('expense');
-  const [amount, setAmount] = useState('');
-  const [description, setDescription] = useState('');
-  const [category, setCategory] = useState('Alimentação');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [selectedSourceId, setSelectedSourceId] = useState('');
-
-  // Parcelamento (apenas para cartão)
-  const [isInstallment, setIsInstallment] = useState(false);
-  const [installments, setInstallments] = useState('2');
-
-  // Detalhes extras
-  const [transactionId, setTransactionId] = useState('');
-  const [receiverName, setReceiverName] = useState('');
-
-  // Recorrência
-  const [isRecurring, setIsRecurring] = useState(false);
-  const [recurrenceCount, setRecurrenceCount] = useState('12');
-
-  useEffect(() => {
-    if (initialData) {
-      if (initialData.amount) setAmount(initialData.amount.toString());
-
-      // Prioritize receiver for description if available, otherwise use generic description
-      const descToUse = initialData.receiver || initialData.description || '';
-      setDescription(descToUse);
-
-      if (initialData.receiver) setReceiverName(initialData.receiver);
-      if (initialData.transactionId) setTransactionId(initialData.transactionId);
-      if (initialData.date) setDate(initialData.date);
-      if (initialData.category) setCategory(initialData.category);
-
-      setTab('expense');
-    }
-  }, [initialData]);
-
-  // Seleção automática de conta/cartão ao mudar de aba
-  useEffect(() => {
-    if (tab === 'income' || tab === 'expense') {
-      if (accounts.length > 0 && !accounts.find(a => a.id === selectedSourceId)) setSelectedSourceId(accounts[0].id);
-    } else if (tab === 'credit') {
-      if (cards.length > 0 && !cards.find(c => c.id === selectedSourceId)) setSelectedSourceId(cards[0].id);
-    }
-  }, [tab, accounts, cards, selectedSourceId]);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-
-    // Concatenar detalhes extras na descrição se houverem, já que não temos campos no DB para isso
-    let finalDescription = description;
-    if (transactionId && !finalDescription.includes(transactionId)) {
-      finalDescription += ` (ID: ${transactionId.substring(0, 8)}...)`;
-    }
-
-    const newTransaction: Omit<Transaction, 'id'> = {
-      description: finalDescription,
-      amount: parseFloat(amount),
-      date: date,
-      type: tab === 'income' ? TransactionType.INCOME : TransactionType.EXPENSE,
-      category,
-      isPaid: tab !== 'credit', // Crédito não é pago imediatamente, vai pra fatura
-      accountId: (tab === 'expense' || tab === 'income') ? selectedSourceId : undefined,
-      cardId: tab === 'credit' ? selectedSourceId : undefined,
-      installments: (tab === 'credit' && isInstallment) ? parseInt(installments) : 1
-    };
-
-    if (isRecurring && !transactionId) {
-      const transactions: Omit<Transaction, 'id'>[] = [];
-      const count = parseInt(recurrenceCount);
-      const baseDate = new Date(date); // Use the selected date as start
-
-      for (let i = 0; i < count; i++) {
-        const newDate = new Date(baseDate);
-        newDate.setMonth(baseDate.getMonth() + i);
-
-        transactions.push({
-          ...newTransaction,
-          date: newDate.toISOString().split('T')[0],
-          description: `${finalDescription} (${i + 1}/${count})`
-        });
-      }
-      onSave(transactions);
-    } else {
-      onSave(newTransaction);
-    }
-  };
-
-  return (
-    <div
-      className="fixed inset-0 z-[100] flex items-start justify-center pt-20 px-4 bg-black/60 backdrop-blur-sm animate-fade-in overflow-y-auto"
-      onMouseDown={onClose}
-    >
-      <div
-        className="bg-[#1a1d24] backdrop-blur-xl border border-white/[0.08] rounded-2xl shadow-2xl w-full max-w-sm flex flex-col my-4 max-h-[calc(100vh-120px)] overflow-hidden animate-scale-up ring-1 ring-white/5"
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-
-        <div className="px-4 py-3 border-b border-white/[0.05] flex justify-between items-center bg-white/[0.02] shrink-0">
-          <h2 className="text-base font-bold text-white flex items-center gap-2">
-            {initialData && !initialData.transactionId && <Icon name="magic_button" className="text-teal-400 text-lg" />}
-            {initialData && initialData.transactionId ? 'Editar Transação' : 'Nova Transação'}
-          </h2>
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onClose(); }}
-            className="text-gray-400 hover:text-white transition-colors"
-          >
-            <Icon name="close" className="text-lg" />
-          </button>
-        </div>
-
-        {initialData && (
-          <div className="px-4 pt-2">
-            <div className="bg-blue-500/20 text-blue-200 text-[10px] p-2 rounded-lg flex items-center gap-2">
-              <Icon name="auto_awesome" className="text-sm" />
-              <div>
-                <p>Dados extraídos.</p>
-                {receiverName && <p className="font-bold text-[10px]">Beneficiário: {receiverName}</p>}
-              </div>
-            </div>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="p-4 space-y-4 overflow-y-auto">
-          {/* Seletor de Tipo (Tabs) */}
-          <div className="flex p-1 bg-white/[0.05] rounded-xl">
-            <button
-              type="button"
-              onClick={() => setTab('expense')}
-              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 ${tab === 'expense' ? 'bg-white/[0.1] text-red-400 shadow-sm' : 'text-gray-500 hover:text-gray-300'}`}
-            >
-              <Icon name="trending_down" className="text-base" /> Despesa
-            </button>
-            <button
-              type="button"
-              onClick={() => setTab('income')}
-              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 ${tab === 'income' ? 'bg-white/[0.1] text-green-400 shadow-sm' : 'text-gray-500 hover:text-gray-300'}`}
-            >
-              <Icon name="trending_up" className="text-base" /> Receita
-            </button>
-            <button
-              type="button"
-              onClick={() => setTab('credit')}
-              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 ${tab === 'credit' ? 'bg-white/[0.1] text-purple-400 shadow-sm' : 'text-gray-500 hover:text-gray-300'}`}
-            >
-              <Icon name="credit_card" className="text-base" /> Cartão
-            </button>
-          </div>
-
-          {/* Valor */}
-          <div>
-            <div className="relative">
-              <span className="absolute left-0 top-1/2 -translate-y-1/2 text-gray-400 font-medium text-sm pl-3">R$</span>
-              <input
-                type="number"
-                step="0.01"
-                required
-                placeholder="0,00"
-                value={amount}
-                onChange={e => setAmount(e.target.value)}
-                className="w-full pl-8 pr-3 py-2 bg-transparent border-b-2 border-white/[0.1] focus:border-teal-500 text-2xl font-black text-white placeholder:text-gray-600 outline-none transition-colors text-center"
-              />
-            </div>
-          </div>
-
-          {/* Descrição e Detalhes */}
-          <div className="space-y-3 bg-white/[0.03] p-3 rounded-xl border border-white/[0.05]">
-            <div>
-              <label className="block text-[10px] font-bold uppercase text-gray-400 mb-1">Descrição / Beneficiário</label>
-              <input type="text" required placeholder="Ex: Almoço, Salário" value={description} onChange={e => setDescription(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-white/[0.1] bg-white/[0.05] text-white text-sm focus:ring-1 focus:ring-teal-500/50 outline-none placeholder-gray-600" />
-            </div>
-
-            {(initialData || transactionId) && (
-              <div>
-                <label className="block text-[10px] font-bold uppercase text-gray-400 mb-1">ID Transação (Opcional)</label>
-                <input type="text" placeholder="ID Transação (Opcional)" value={transactionId} onChange={e => setTransactionId(e.target.value)} className="w-full px-3 py-1.5 rounded-lg bg-white/[0.05] border border-white/[0.1] text-xs text-gray-400 focus:ring-1 focus:ring-teal-500 outline-none font-mono" />
-              </div>
-            )}
-
-            {/* Recorrência (Apenas para novas transações e não crédito) */}
-            {!transactionId && tab !== 'credit' && (
-              <div className="flex items-center gap-3 pt-2 border-t border-white/[0.05]">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="recurring"
-                    checked={isRecurring}
-                    onChange={(e) => setIsRecurring(e.target.checked)}
-                    className="w-4 h-4 rounded border-gray-600 text-teal-500 focus:ring-teal-500/50 bg-gray-700 accent-teal-500"
-                  />
-                  <label htmlFor="recurring" className="text-xs text-gray-300 font-medium select-none cursor-pointer">
-                    Repetir mensalmente
-                  </label>
-                </div>
-                {isRecurring && (
-                  <div className="flex items-center gap-2 ml-auto animate-fade-in">
-                    <input
-                      type="number"
-                      min="2"
-                      max="60"
-                      value={recurrenceCount}
-                      onChange={(e) => setRecurrenceCount(e.target.value)}
-                      className="w-12 px-1 py-1 rounded bg-black/20 border border-white/[0.1] text-white text-xs text-center outline-none focus:border-teal-500"
-                    />
-                    <span className="text-[10px] text-gray-500">meses</span>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Grid Categoria e Data */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-gray-400 mb-1">Categoria</label>
-              <Dropdown
-                options={[
-                  { label: 'Alimentação', value: 'Alimentação' },
-                  { label: 'Transporte', value: 'Transporte' },
-                  { label: 'Lazer', value: 'Lazer' },
-                  { label: 'Moradia', value: 'Moradia' },
-                  { label: 'Saúde', value: 'Saúde' },
-                  { label: 'Transferência', value: 'Transferência' },
-                  { label: 'Outros', value: 'Outros' },
-                  { label: 'Salário', value: 'Salário' }
-                ]}
-                value={category}
-                onChange={setCategory}
-                className="w-full"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-gray-400 mb-1">Data</label>
-              <input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full px-3 py-2.5 rounded-lg bg-white/[0.05] border border-white/[0.1] text-sm text-white focus:ring-1 focus:ring-teal-500 outline-none" />
-            </div>
-          </div>
-
-          {/* Seleção de Conta ou Cartão */}
-          <div>
-            <label className="block text-xs font-bold text-gray-400 mb-1">
-              {tab === 'income' ? 'Conta de Destino' : (tab === 'credit' ? 'Selecione o Cartão' : 'Conta de Saída')}
-            </label>
-            <div className="relative">
-              <Dropdown
-                options={
-                  (tab === 'income' || tab === 'expense')
-                    ? (accounts.length > 0 ? accounts.map(acc => ({ label: `${acc.name} (${formatCurrency(acc.balance)})`, value: acc.id })) : [{ label: 'Nenhuma conta cadastrada', value: '' }])
-                    : (cards.length > 0 ? cards.map(card => ({ label: `${card.name} (Final ${card.lastDigits})`, value: card.id })) : [{ label: 'Nenhum cartão cadastrado', value: '' }])
-                }
-                value={selectedSourceId}
-                onChange={setSelectedSourceId}
-                placeholder={tab === 'credit' ? 'Selecione o Cartão' : (tab === 'income' ? 'Conta de Destino' : 'Conta de Saída')}
-                className="w-full"
-              />
-            </div>
-          </div>
-
-          {/* Parcelamento (Só aparece se for Cartão) */}
-          {tab === 'credit' && (
-            <div className="flex items-center gap-3 px-1">
-              <label className="flex items-center gap-2 cursor-pointer select-none">
-                <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${isInstallment ? 'bg-teal-500 border-teal-500' : 'border-gray-400'}`} onClick={() => setIsInstallment(!isInstallment)}>
-                  {isInstallment && <Icon name="check" className="text-white text-xs" />}
-                </div>
-                <span className="text-xs font-medium text-gray-300">Parcelado</span>
-              </label>
-              {isInstallment && (
-                <div className="flex-1 flex items-center gap-2 animate-fade-in">
-                  <input type="number" min="2" max="36" value={installments} onChange={(e) => setInstallments(e.target.value)} className="w-16 px-2 py-1 rounded bg-white/[0.05] border border-white/[0.1] text-sm text-center outline-none text-white" />
-                  <span className="text-[10px] text-gray-500">x {formatCurrency(amount ? parseFloat(amount) / parseInt(installments) : 0)}</span>
-                </div>
-              )}
-            </div>
-          )}
-
-          <div className="grid grid-cols-2 gap-3 pt-2">
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); onClose(); }}
-              className="py-2.5 rounded-lg font-bold text-sm text-gray-300 bg-white/[0.05] hover:bg-white/[0.1] transition-colors"
-            >
-              Cancelar
-            </button>
-            <button type="submit" className={`py-2.5 rounded-lg font-bold text-sm text-white shadow-sm hover:shadow-md transition-all active:scale-95 ${tab === 'expense' ? 'bg-red-600' : tab === 'credit' ? 'bg-purple-600' : 'bg-green-600'}`}>Salvar</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-};
 
 const DetailsTransactionModal: React.FC<{
   transaction: Transaction;
@@ -1049,14 +734,6 @@ const DetailsTransactionModal: React.FC<{
   const isExpense = transaction.type === TransactionType.EXPENSE;
   const colorClass = isExpense ? 'text-red-400' : 'text-green-400';
   const bgClass = isExpense ? 'bg-red-500/20' : 'bg-green-500/20';
-
-  // Block scroll when modal is open
-  useEffect(() => {
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, []);
 
   const handleDelete = () => {
     if (window.confirm('Deseja realmente excluir esta transação?')) {
@@ -1079,88 +756,88 @@ const DetailsTransactionModal: React.FC<{
   };
 
   return (
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in"
-      onClick={onClose}
+    <Modal
+      isOpen={true}
+      onClose={onClose}
+      hideHeader={true}
+      maxWidth="max-w-sm"
+      noPadding={true}
     >
-      <div
-        className="w-full max-w-md bg-[#1a1d24] backdrop-blur-xl rounded-2xl shadow-2xl border border-white/[0.08] ring-1 ring-white/5 overflow-hidden animate-scale-in"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className={`p-8 bg-gradient-to-b ${isExpense ? 'from-red-500/10' : 'from-green-500/10'} to-transparent border-b border-white/[0.08] relative`}>
-          <button
-            onClick={onClose}
-            className="absolute top-4 right-4 p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-          >
-            <Icon name="close" className="text-xl" />
-          </button>
-          <div className="flex flex-col items-center gap-4">
-            <div className={`size-16 rounded-full ${bgClass} flex items-center justify-center shadow-lg ring-1 ring-white/10`}>
-              <Icon name={isExpense ? 'shopping_cart' : 'trending_up'} className={`text-3xl ${colorClass}`} />
-            </div>
-            <div className="text-center">
-              <h2 className={`text-4xl font-bold ${colorClass} tracking-tight`}>
-                {isExpense ? '-' : '+'} {formatCurrency(transaction.amount)}
-              </h2>
-              <p className="text-gray-400 text-sm mt-1 font-medium">{transaction.description}</p>
-            </div>
+      {/* Custom Header inside Standard Modal */}
+      <div className={`p-6 bg-gradient-to-b ${isExpense ? 'from-red-500/10' : 'from-green-500/10'} to-transparent border-b border-white/[0.08] relative`}>
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+        >
+          <Icon name="close" className="text-xl" />
+        </button>
+        <div className="flex flex-col items-center gap-4">
+          <div className={`size-16 rounded-full ${bgClass} flex items-center justify-center shadow-lg ring-1 ring-white/10`}>
+            <Icon name={isExpense ? 'shopping_cart' : 'trending_up'} className={`text-3xl ${colorClass}`} />
+          </div>
+          <div className="text-center">
+            <h2 className={`text-4xl font-bold ${colorClass} tracking-tight`}>
+              <PrivateValue>{isExpense ? '-' : '+'} {formatCurrency(transaction.amount)}</PrivateValue>
+            </h2>
+            <p className="text-gray-400 text-sm mt-1 font-medium">{transaction.description}</p>
+          </div>
 
-            <div className="flex gap-2">
-              {transaction.isPaid && (
-                <span className="px-3 py-1 rounded-full bg-green-500/10 text-green-400 text-xs font-bold border border-green-500/20">
-                  Efetivada
-                </span>
-              )}
-              {transaction.installmentNumber && transaction.installments && (
-                <span className="px-3 py-1 rounded-full bg-white/5 text-gray-300 text-xs font-medium border border-white/10">
-                  Parcela {transaction.installmentNumber}/{transaction.installments}
-                </span>
-              )}
-            </div>
+          <div className="flex gap-2">
+            {transaction.isPaid && (
+              <span className="px-3 py-1 rounded-full bg-green-500/10 text-green-400 text-xs font-bold border border-green-500/20">
+                Efetivada
+              </span>
+            )}
+            {transaction.installmentNumber && transaction.installments && (
+              <span className="px-3 py-1 rounded-full bg-white/5 text-gray-300 text-xs font-medium border border-white/10">
+                Parcela {transaction.installmentNumber}/{transaction.installments}
+              </span>
+            )}
           </div>
         </div>
-
-        {/* Details */}
-        <div className="p-6 space-y-5">
-          <DetailRow icon="category" label="Categoria" value={transaction.category} />
-          <DetailRow icon="calendar_today" label="Data" value={formatDate(transaction.date)} />
-          <DetailRow
-            icon={transaction.accountId ? "account_balance" : "credit_card"}
-            label="Origem"
-            value={transaction.accountId ? "Conta Corrente" : "Cartão de Crédito"}
-          />
-          {transaction.id && (
-            <DetailRow icon="fingerprint" label="ID da Transação" value={transaction.id.substring(0, 8)} />
-          )}
-        </div>
-
-        {/* Action Buttons */}
-        <div className="p-4 border-t border-white/[0.08] grid grid-cols-3 gap-3 bg-white/[0.02]">
-          <button
-            onClick={handleEdit}
-            className="flex flex-col items-center justify-center gap-1 h-14 rounded-xl bg-teal-500/5 text-teal-400 font-semibold hover:bg-teal-500/10 border border-teal-500/10 transition-all active:scale-95 group"
-          >
-            <Icon name="edit" className="text-xl group-hover:scale-110 transition-transform" />
-            <span className="text-xs">Editar</span>
-          </button>
-          <button
-            onClick={handleDuplicate}
-            className="flex flex-col items-center justify-center gap-1 h-14 rounded-xl bg-blue-500/5 text-blue-400 font-semibold hover:bg-blue-500/10 border border-blue-500/10 transition-all active:scale-95 group"
-          >
-            <Icon name="content_copy" className="text-xl group-hover:scale-110 transition-transform" />
-            <span className="text-xs">Copiar</span>
-          </button>
-          <button
-            onClick={handleDelete}
-            className="flex flex-col items-center justify-center gap-1 h-14 rounded-xl bg-red-500/5 text-red-400 font-semibold hover:bg-red-500/10 border border-red-500/10 transition-all active:scale-95 group"
-          >
-            <Icon name="delete" className="text-xl group-hover:scale-110 transition-transform" />
-            <span className="text-xs">Excluir</span>
-          </button>
-        </div>
       </div>
-    </div>
+
+      {/* Details */}
+      <div className="p-5 space-y-5">
+        <DetailRow icon="category" label="Categoria" value={transaction.category} />
+        <DetailRow icon="calendar_today" label="Data" value={formatDate(transaction.date)} />
+        <DetailRow
+          icon={transaction.accountId ? "account_balance" : "credit_card"}
+          label="Origem"
+          value={transaction.accountId ? "Conta Corrente" : "Cartão de Crédito"}
+        />
+        {transaction.id && (
+          <DetailRow icon="fingerprint" label="ID da Transação" value={transaction.id.substring(0, 8)} />
+        )}
+
+        <FiscalManager transaction={transaction} />
+      </div>
+
+      {/* Action Buttons */}
+      <div className="p-4 border-t border-white/[0.08] grid grid-cols-3 gap-3 bg-white/[0.02]">
+        <button
+          onClick={handleEdit}
+          className="flex flex-col items-center justify-center gap-1 h-14 rounded-xl bg-teal-500/5 text-teal-400 font-semibold hover:bg-teal-500/10 border border-teal-500/10 transition-all active:scale-95 group"
+        >
+          <Icon name="edit" className="text-xl group-hover:scale-110 transition-transform" />
+          <span className="text-xs">Editar</span>
+        </button>
+        <button
+          onClick={handleDuplicate}
+          className="flex flex-col items-center justify-center gap-1 h-14 rounded-xl bg-blue-500/5 text-blue-400 font-semibold hover:bg-blue-500/10 border border-blue-500/10 transition-all active:scale-95 group"
+        >
+          <Icon name="content_copy" className="text-xl group-hover:scale-110 transition-transform" />
+          <span className="text-xs">Copiar</span>
+        </button>
+        <button
+          onClick={handleDelete}
+          className="flex flex-col items-center justify-center gap-1 h-14 rounded-xl bg-red-500/5 text-red-400 font-semibold hover:bg-red-500/10 border border-red-500/10 transition-all active:scale-95 group"
+        >
+          <Icon name="delete" className="text-xl group-hover:scale-110 transition-transform" />
+          <span className="text-xs">Excluir</span>
+        </button>
+      </div>
+    </Modal>
   );
 };
 

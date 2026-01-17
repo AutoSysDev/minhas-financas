@@ -72,25 +72,27 @@ export const ExpensePieChart: React.FC<ExpensePieChartProps> = ({ data = [] }) =
   });
 
   return (
-    <div className="w-full h-64">
-      <svg viewBox="0 0 100 100" className="w-full h-full">
-        {/* Círculo interno (donut hole) */}
-        <circle cx="50" cy="50" r="25" fill="transparent" className="dark:fill-gray-800" />
+    <div className="w-full h-auto flex flex-col">
+      <div className="h-64 w-full shrink-0">
+        <svg viewBox="0 0 100 100" className="w-full h-full">
+          {/* Círculo interno (donut hole) */}
+          <circle cx="50" cy="50" r="25" fill="transparent" className="dark:fill-gray-800" />
 
-        {/* Fatias do gráfico */}
-        {slices.map((slice, index) => (
-          <g key={index}>
-            <path
-              d={slice.pathData}
-              fill={slice.color}
-              className="transition-opacity hover:opacity-80 cursor-pointer"
-            />
-          </g>
-        ))}
+          {/* Fatias do gráfico */}
+          {slices.map((slice, index) => (
+            <g key={index}>
+              <path
+                d={slice.pathData}
+                fill={slice.color}
+                className="transition-opacity hover:opacity-80 cursor-pointer"
+              />
+            </g>
+          ))}
 
-        {/* Círculo interno branco */}
-        <circle cx="50" cy="50" r="25" fill="white" className="dark:fill-gray-800" />
-      </svg>
+          {/* Círculo interno branco */}
+          <circle cx="50" cy="50" r="25" fill="white" className="dark:fill-gray-800" />
+        </svg>
+      </div>
 
       {/* Legenda */}
       <div className="mt-4 space-y-2">
@@ -103,13 +105,13 @@ export const ExpensePieChart: React.FC<ExpensePieChartProps> = ({ data = [] }) =
                   className="w-3 h-3 rounded-full"
                   style={{ backgroundColor: item.color }}
                 />
-                <span className="text-gray-700 dark:text-gray-300">{item.name}</span>
+                <span className="text-gray-300">{item.name}</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="font-semibold text-gray-900 dark:text-white">
+                <span className="font-semibold text-white">
                   R$ {item.value.toFixed(2)}
                 </span>
-                <span className="text-gray-500 dark:text-gray-400">({percentage}%)</span>
+                <span className="text-gray-400">({percentage}%)</span>
               </div>
             </div>
           );
@@ -171,29 +173,37 @@ export const IncomeExpenseChart: React.FC<IncomeExpenseChartProps> = ({ data = [
     );
   }
 
-  const maxValue = Math.max(
-    ...data.map(d => Math.max(d.income, d.expense))
+  const safeData = data.map(d => ({
+    month: d.month,
+    income: Number((d as any).income ?? 0),
+    expense: Number((d as any).expense ?? 0)
+  }));
+
+  const maxValueRaw = Math.max(
+    ...safeData.map(d => Math.max(d.income, d.expense))
   );
+  const maxValue = maxValueRaw > 0 ? maxValueRaw : 1;
 
   const width = 100;
   const height = 60;
   const padding = 5;
 
-  const incomePoints = data.map((item, index) => {
-    const x = padding + (index / (data.length - 1)) * (width - 2 * padding);
+  const denom = safeData.length > 1 ? (safeData.length - 1) : 1;
+  const incomePoints = safeData.map((item, index) => {
+    const x = padding + (index / denom) * (width - 2 * padding);
     const y = height - padding - ((item.income / maxValue) * (height - 2 * padding));
     return `${x},${y}`;
   }).join(' ');
 
-  const expensePoints = data.map((item, index) => {
-    const x = padding + (index / (data.length - 1)) * (width - 2 * padding);
+  const expensePoints = safeData.map((item, index) => {
+    const x = padding + (index / denom) * (width - 2 * padding);
     const y = height - padding - ((item.expense / maxValue) * (height - 2 * padding));
     return `${x},${y}`;
   }).join(' ');
 
   // Criar área preenchida para receitas
-  const incomeAreaPoints = data.map((item, index) => {
-    const x = padding + (index / (data.length - 1)) * (width - 2 * padding);
+  const incomeAreaPoints = safeData.map((item, index) => {
+    const x = padding + (index / denom) * (width - 2 * padding);
     const y = height - padding - ((item.income / maxValue) * (height - 2 * padding));
     return [x, y];
   });
@@ -204,8 +214,8 @@ export const IncomeExpenseChart: React.FC<IncomeExpenseChartProps> = ({ data = [
   ].map(p => p.join(',')).join(' ');
 
   // Criar área preenchida para despesas
-  const expenseAreaPoints = data.map((item, index) => {
-    const x = padding + (index / (data.length - 1)) * (width - 2 * padding);
+  const expenseAreaPoints = safeData.map((item, index) => {
+    const x = padding + (index / denom) * (width - 2 * padding);
     const y = height - padding - ((item.expense / maxValue) * (height - 2 * padding));
     return [x, y];
   });
@@ -216,100 +226,102 @@ export const IncomeExpenseChart: React.FC<IncomeExpenseChartProps> = ({ data = [
   ].map(p => p.join(',')).join(' ');
 
   return (
-    <div className="w-full h-full min-h-[200px]">
-      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full">
-        {/* Grid lines */}
-        {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => {
-          const y = height - padding - (ratio * (height - 2 * padding));
-          return (
-            <line
-              key={i}
-              x1={padding}
-              y1={y}
-              x2={width - padding}
-              y2={y}
-              stroke="currentColor"
-              strokeWidth="0.2"
-              className="text-gray-300 dark:text-gray-700"
-              strokeDasharray="1,1"
-            />
-          );
-        })}
+    <div className="w-full h-auto flex flex-col">
+      <div className="h-64 w-full shrink-0">
+        <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full">
+          {/* Grid lines */}
+          {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => {
+            const y = height - padding - (ratio * (height - 2 * padding));
+            return (
+              <line
+                key={i}
+                x1={padding}
+                y1={y}
+                x2={width - padding}
+                y2={y}
+                stroke="currentColor"
+                strokeWidth="0.2"
+                className="text-gray-300 dark:text-gray-700"
+                strokeDasharray="1,1"
+              />
+            );
+          })}
 
-        {/* Área de Receitas (mais transparente) */}
-        <polygon
-          points={incomeArea}
-          fill="#22c55e"
-          fillOpacity="0.2"
-        />
+          {/* Área de Receitas (mais transparente) */}
+          <polygon
+            points={incomeArea}
+            fill="#22c55e"
+            fillOpacity="0.2"
+          />
 
-        {/* Linha de Receitas */}
-        <polyline
-          points={incomePoints}
-          fill="none"
-          stroke="#22c55e"
-          strokeWidth="1.5"
-          strokeLinejoin="round"
-          strokeLinecap="round"
-        />
+          {/* Linha de Receitas */}
+          <polyline
+            points={incomePoints}
+            fill="none"
+            stroke="#22c55e"
+            strokeWidth="1.5"
+            strokeLinejoin="round"
+            strokeLinecap="round"
+          />
 
-        {/* Área de Despesas (mais transparente) */}
-        <polygon
-          points={expenseArea}
-          fill="#3b82f6"
-          fillOpacity="0.2"
-        />
+          {/* Área de Despesas (mais transparente) */}
+          <polygon
+            points={expenseArea}
+            fill="#3b82f6"
+            fillOpacity="0.2"
+          />
 
-        {/* Linha de Despesas */}
-        <polyline
-          points={expensePoints}
-          fill="none"
-          stroke="#3b82f6"
-          strokeWidth="1.5"
-          strokeLinejoin="round"
-          strokeLinecap="round"
-        />
+          {/* Linha de Despesas */}
+          <polyline
+            points={expensePoints}
+            fill="none"
+            stroke="#3b82f6"
+            strokeWidth="1.5"
+            strokeLinejoin="round"
+            strokeLinecap="round"
+          />
 
-        {/* Pontos de Receitas */}
-        {data.map((item, index) => {
-          const x = padding + (index / (data.length - 1)) * (width - 2 * padding);
-          const y = height - padding - ((item.income / maxValue) * (height - 2 * padding));
-          return (
-            <circle
-              key={`income-${index}`}
-              cx={x}
-              cy={y}
-              r="1.5"
-              fill="#22c55e"
-              className="cursor-pointer"
-            >
-              <title>Receita: R$ {item.income.toFixed(2)}</title>
-            </circle>
-          );
-        })}
+          {/* Pontos de Receitas */}
+          {safeData.map((item, index) => {
+            const x = padding + (index / denom) * (width - 2 * padding);
+            const y = height - padding - ((item.income / maxValue) * (height - 2 * padding));
+            return (
+              <circle
+                key={`income-${index}`}
+                cx={x}
+                cy={y}
+                r="1.5"
+                fill="#22c55e"
+                className="cursor-pointer"
+              >
+                <title>Receita: R$ {Number(item.income ?? 0).toFixed(2)}</title>
+              </circle>
+            );
+          })}
 
-        {/* Pontos de Despesas */}
-        {data.map((item, index) => {
-          const x = padding + (index / (data.length - 1)) * (width - 2 * padding);
-          const y = height - padding - ((item.expense / maxValue) * (height - 2 * padding));
-          return (
-            <circle
-              key={`expense-${index}`}
-              cx={x}
-              cy={y}
-              r="1.5"
-              fill="#3b82f6"
-              className="cursor-pointer"
-            >
-              <title>Despesa: R$ {item.expense.toFixed(2)}</title>
-            </circle>
-          );
-        })}
-      </svg>
+          {/* Pontos de Despesas */}
+          {safeData.map((item, index) => {
+            const x = padding + (index / denom) * (width - 2 * padding);
+            const y = height - padding - ((item.expense / maxValue) * (height - 2 * padding));
+            return (
+              <circle
+                key={`expense-${index}`}
+                cx={x}
+                cy={y}
+                r="1.5"
+                fill="#3b82f6"
+                className="cursor-pointer"
+              >
+                <title>Despesa: R$ {Number(item.expense ?? 0).toFixed(2)}</title>
+              </circle>
+            );
+          })}
+        </svg>
+      </div>
 
       {/* Labels dos meses */}
       <div className="flex justify-around mt-2 px-4">
-        {data.map((item, index) => (
+        {safeData.map((item, index) => (
           <div key={index} className="text-xs text-white font-medium">
             {item.month}
           </div>

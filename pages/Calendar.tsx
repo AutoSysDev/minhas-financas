@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { MonthNavigation } from '../components/MonthNavigation';
 import { Icon } from '../components/Icon';
 import { useFinance } from '../context/FinanceContext';
 import { TransactionType } from '../types';
@@ -9,18 +10,9 @@ const Calendar: React.FC = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
 
-  // Navegação de Mês
-  const navigateMonth = (direction: number) => {
-    const newDate = new Date(currentDate);
-    newDate.setMonth(currentDate.getMonth() + direction);
-    setCurrentDate(newDate);
-    setSelectedDate(newDate); // Reseta seleção para o novo mês
-  };
-
   // Utilitários de Data
   const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
   const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
-  const monthName = currentDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
 
   // Helper para normalizar datas das transações
   const getTransactionDate = (dateStr: string) => {
@@ -136,17 +128,14 @@ const Calendar: React.FC = () => {
           <p className="text-gray-600 dark:text-gray-400 mt-1 text-sm">Visualize suas movimentações por data.</p>
         </div>
 
-        <div className="flex items-center justify-between bg-white/[0.05] border border-white/[0.1] p-1 rounded-xl shadow-sm min-w-[200px] backdrop-blur-md">
-          <button onClick={() => navigateMonth(-1)} className="p-2 hover:bg-white/[0.1] rounded-lg text-gray-400 transition-colors">
-            <Icon name="chevron_left" />
-          </button>
-          <span className="text-sm font-bold text-white capitalize">
-            {monthName}
-          </span>
-          <button onClick={() => navigateMonth(1)} className="p-2 hover:bg-white/[0.1] rounded-lg text-gray-400 transition-colors">
-            <Icon name="chevron_right" />
-          </button>
-        </div>
+        <MonthNavigation
+          currentDate={currentDate}
+          onMonthChange={(date) => {
+            setCurrentDate(date);
+            setSelectedDate(date);
+          }}
+          className="min-w-[200px]"
+        />
       </div>
 
       <div className="flex flex-col xl:flex-row gap-6 h-full">

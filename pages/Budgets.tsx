@@ -1,21 +1,30 @@
 import React, { useState } from 'react';
 import { Icon } from '../components/Icon';
+import { PrivateValue } from '../components/PrivateValue';
 import { Dropdown } from '../components/Dropdown';
 import { Modal } from '../components/Modal';
 import { useFinance } from '../context/FinanceContext';
 import { Budget, Transaction, TransactionType } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
-import { formatCurrency, formatDate } from '../utils/helpers';
+import { MonthNavigation } from '../components/MonthNavigation';
+import { formatCurrency, formatDate, getTransactionDate } from '../utils/helpers';
 
 const Budgets: React.FC = () => {
   const { budgets, transactions, addBudget } = useFinance();
   const [selectedBudget, setSelectedBudget] = useState<Budget | null>(null);
   const [isNewBudgetModalOpen, setIsNewBudgetModalOpen] = useState(false);
+  const [currentDate, setCurrentDate] = useState(new Date());
 
-  // Calculate spent for each budget based on category
+  // Calculate spent for each budget based on category and selected month
   const budgetsWithData = budgets.map(budget => {
     const spent = transactions
-      .filter(t => t.type === TransactionType.EXPENSE && t.category === budget.category)
+      .filter(t => {
+        const tDate = getTransactionDate(t.date);
+        return t.type === TransactionType.EXPENSE &&
+          t.category === budget.category &&
+          tDate.getMonth() === currentDate.getMonth() &&
+          tDate.getFullYear() === currentDate.getFullYear();
+      })
       .reduce((acc, t) => acc + t.amount, 0);
     return { ...budget, spent };
   });
@@ -32,14 +41,29 @@ const Budgets: React.FC = () => {
           <h1 className="text-white text-2xl md:text-3xl font-black leading-tight tracking-[-0.033em]">Orçamentos</h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1 text-sm">Planejamento mensal de gastos.</p>
         </div>
-        <button
-          onClick={() => setIsNewBudgetModalOpen(true)}
-          className="flex min-w-[40px] md:min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-teal-500 text-white text-sm font-medium leading-normal gap-2 hover:bg-teal-600 transition-colors shadow-[0_0_20px_-5px_rgba(45,212,191,0.3)]"
-        >
-          <Icon name="add" />
-          <span className="truncate hidden md:inline">Novo Orçamento</span>
-          <span className="md:hidden">Novo</span>
-        </button>
+        <div className="flex items-center gap-4">
+          <MonthNavigation
+            currentDate={currentDate}
+            onMonthChange={setCurrentDate}
+            className="hidden md:flex min-w-[200px]"
+          />
+          <button
+            onClick={() => setIsNewBudgetModalOpen(true)}
+            className="flex min-w-[40px] md:min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-teal-500 text-white text-sm font-medium leading-normal gap-2 hover:bg-teal-600 transition-colors shadow-[0_0_20px_-5px_rgba(45,212,191,0.3)]"
+          >
+            <Icon name="add" />
+            <span className="truncate hidden md:inline">Novo Orçamento</span>
+            <span className="md:hidden">Novo</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Mobile Navigation */}
+      <div className="md:hidden">
+        <MonthNavigation
+          currentDate={currentDate}
+          onMonthChange={setCurrentDate}
+        />
       </div>
 
       {/* Resumo Unificado */}
@@ -48,19 +72,19 @@ const Budgets: React.FC = () => {
           <div className="p-4 flex flex-col items-center justify-center text-center">
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Orçado</p>
             <p className="text-sm md:text-lg font-bold text-white truncate w-full">
-              {formatCurrency(totalBudget)}
+              <PrivateValue>{formatCurrency(totalBudget)}</PrivateValue>
             </p>
           </div>
           <div className="p-4 flex flex-col items-center justify-center text-center">
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Gasto</p>
             <p className="text-sm md:text-lg font-bold text-white truncate w-full">
-              {formatCurrency(totalSpent)}
+              <PrivateValue>{formatCurrency(totalSpent)}</PrivateValue>
             </p>
           </div>
           <div className="p-4 flex flex-col items-center justify-center text-center bg-white/[0.02]">
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Restante</p>
             <p className={`text-sm md:text-lg font-bold truncate w-full ${totalRemaining < 0 ? 'text-red-400' : 'text-green-400'}`}>
-              {formatCurrency(totalRemaining)}
+              <PrivateValue>{formatCurrency(totalRemaining)}</PrivateValue>
             </p>
           </div>
         </div>
@@ -98,7 +122,7 @@ const Budgets: React.FC = () => {
                   <h3 className="font-bold text-base text-white truncate group-hover:text-teal-400 transition-colors">{budget.category}</h3>
                   <div className="text-right">
                     <span className={`text-sm font-bold ${remainingTextClass}`}>
-                      {remaining < 0 ? '-' : ''} {formatCurrency(Math.abs(remaining))}
+                      <PrivateValue>{remaining < 0 ? '-' : ''} {formatCurrency(Math.abs(remaining))}</PrivateValue>
                     </span>
                     <span className="text-[10px] text-gray-400 font-normal ml-1 uppercase">restante</span>
                   </div>
@@ -110,7 +134,7 @@ const Budgets: React.FC = () => {
                   ></div>
                 </div>
                 <div className="flex justify-between items-center text-xs text-gray-400">
-                  <span>{formatCurrency(budget.spent)} de {formatCurrency(budget.limit)}</span>
+                  <span><PrivateValue>{formatCurrency(budget.spent)}</PrivateValue> de <PrivateValue>{formatCurrency(budget.limit)}</PrivateValue></span>
                   <span className={isOverBudget ? 'text-red-400 font-bold' : ''}>{percentage.toFixed(0)}%</span>
                 </div>
               </div>
@@ -190,7 +214,8 @@ const NewBudgetModal: React.FC<{ onClose: () => void; onSave: (b: any) => void }
 };
 
 const BudgetActionModal: React.FC<{ budget: any; onClose: () => void; allTransactions: any[] }> = ({ budget, onClose, allTransactions }) => {
-  const [view, setView] = useState<'options' | 'chart' | 'details'>('options');
+  const { deleteBudget } = useFinance();
+  const [view, setView] = useState<'options' | 'chart' | 'details' | 'delete'>('options');
   const remaining = Math.max(0, budget.limit - budget.spent);
   const chartData = [
     { name: 'Gasto', value: budget.spent, color: budget.spent > budget.limit ? '#ef4444' : budget.color },
@@ -198,8 +223,13 @@ const BudgetActionModal: React.FC<{ budget: any; onClose: () => void; allTransac
   ];
   const transactions = allTransactions.filter(t => t.category === budget.category);
 
+  const handleDelete = async () => {
+    await deleteBudget(budget.id);
+    onClose();
+  };
+
   return (
-    <Modal isOpen={true} onClose={onClose} title={view === 'options' ? budget.category : view === 'chart' ? 'Análise de Gastos' : 'Detalhes'}>
+    <Modal isOpen={true} onClose={onClose} title={view === 'options' ? budget.category : view === 'chart' ? 'Análise de Gastos' : view === 'delete' ? 'Excluir Orçamento' : 'Detalhes'}>
       <div className="space-y-4">
         {view !== 'options' && (
           <button onClick={() => setView('options')} className="flex items-center gap-2 text-gray-400 hover:text-teal-400 transition-colors mb-2">
@@ -220,6 +250,36 @@ const BudgetActionModal: React.FC<{ budget: any; onClose: () => void; allTransac
                 <div className="p-4 rounded-full bg-purple-500/20 text-purple-400 group-hover:scale-110 transition-transform"><Icon name="list_alt" className="text-3xl" /></div>
                 <span className="font-bold text-white">Detalhes</span>
               </button>
+              <button onClick={() => setView('delete')} className="col-span-2 flex flex-col items-center justify-center gap-3 p-6 rounded-xl border border-white/[0.1] bg-white/[0.02] hover:border-red-500/50 hover:bg-red-500/10 transition-all group">
+                <div className="p-4 rounded-full bg-red-500/20 text-red-400 group-hover:scale-110 transition-transform"><Icon name="delete" className="text-3xl" /></div>
+                <span className="font-bold text-white">Excluir Orçamento</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {view === 'delete' && (
+          <div className="flex flex-col items-center gap-4 py-4">
+            <div className="p-6 rounded-full bg-red-500/20 text-red-500 mb-2">
+              <Icon name="warning" className="text-5xl" />
+            </div>
+            <h3 className="text-xl font-bold text-white text-center">Tem certeza?</h3>
+            <p className="text-gray-400 text-center max-w-[80%]">
+              Você está prestes a excluir o orçamento de <span className="text-white font-bold">{budget.category}</span>. Esta ação não pode ser desfeita.
+            </p>
+            <div className="flex gap-4 w-full mt-4">
+              <button
+                onClick={() => setView('options')}
+                className="flex-1 h-12 rounded-xl font-bold text-white bg-white/[0.1] hover:bg-white/[0.2] transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDelete}
+                className="flex-1 h-12 rounded-xl font-bold text-white bg-red-500 hover:bg-red-600 shadow-[0_0_20px_-5px_rgba(239,68,68,0.3)] transition-all"
+              >
+                Confirmar Exclusão
+              </button>
             </div>
           </div>
         )}
@@ -227,18 +287,20 @@ const BudgetActionModal: React.FC<{ budget: any; onClose: () => void; allTransac
         {view === 'chart' && (
           <div className="flex flex-col items-center">
             <div className="w-full h-64 relative">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={chartData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value" stroke="none">
-                    {chartData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
-                  </Pie>
-                  <Tooltip
-                    formatter={(value: number) => formatCurrency(value)}
-                    contentStyle={{ backgroundColor: '#1a1d21', borderColor: '#333', color: '#fff' }}
-                  />
-                  <Legend verticalAlign="bottom" height={36} />
-                </PieChart>
-              </ResponsiveContainer>
+              <PrivateValue>
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={chartData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value" stroke="none">
+                      {chartData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
+                    </Pie>
+                    <Tooltip
+                      formatter={(value: number) => formatCurrency(value)}
+                      contentStyle={{ backgroundColor: '#1a1d21', borderColor: '#333', color: '#fff' }}
+                    />
+                    <Legend verticalAlign="bottom" height={36} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </PrivateValue>
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                 <span className="text-xs text-gray-400 font-medium">Gasto</span>
                 <span className="text-xl font-bold text-white">{((budget.spent / budget.limit) * 100).toFixed(0)}%</span>
@@ -264,7 +326,7 @@ const BudgetActionModal: React.FC<{ budget: any; onClose: () => void; allTransac
                       </div>
                     </div>
                     <p className={`font-bold text-sm ${t.type === TransactionType.INCOME ? 'text-green-400' : 'text-red-400'}`}>
-                      {t.type === TransactionType.INCOME ? '+' : '-'} {formatCurrency(t.amount)}
+                      <PrivateValue>{t.type === TransactionType.INCOME ? '+' : '-'} {formatCurrency(t.amount)}</PrivateValue>
                     </p>
                   </div>
                 ))}

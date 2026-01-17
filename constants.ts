@@ -1,12 +1,16 @@
+import nubankLogo from './assets/banks/nubank.png';
+import interLogo from './assets/banks/inter.jpg';
+import c6Logo from './assets/banks/c6.png';
+
 export const BANKS = [
-  { id: 'nubank', name: 'Nubank', color: '#820ad1', icon: 'account_balance_wallet' },
+  { id: 'nubank', name: 'Nubank', color: '#820ad1', icon: 'account_balance_wallet', logo: nubankLogo },
   { id: 'itau', name: 'Itaú', color: '#ec7000', icon: 'account_balance' },
   { id: 'bradesco', name: 'Bradesco', color: '#cc092f', icon: 'account_balance' },
   { id: 'santander', name: 'Santander', color: '#ec0000', icon: 'account_balance' },
-  { id: 'inter', name: 'Inter', color: '#ff7a00', icon: 'account_balance_wallet' },
+  { id: 'inter', name: 'Inter', color: '#ff7a00', icon: 'account_balance_wallet', logo: interLogo },
   { id: 'bb', name: 'Banco do Brasil', color: '#fbf600', icon: 'account_balance' },
   { id: 'caixa', name: 'Caixa', color: '#005ca9', icon: 'account_balance' },
-  { id: 'c6', name: 'C6 Bank', color: '#242424', icon: 'credit_card' },
+  { id: 'c6', name: 'C6 Bank', color: '#242424', icon: 'credit_card', logo: c6Logo },
   { id: 'btg', name: 'BTG Pactual', color: '#000046', icon: 'account_balance' },
   { id: 'original', name: 'Banco Original', color: '#00a470', icon: 'account_balance' },
   { id: 'neon', name: 'Neon', color: '#00a3e0', icon: 'credit_card' },

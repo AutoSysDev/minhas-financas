@@ -2,11 +2,17 @@ import React, { useState } from 'react';
 import { Icon } from '../components/Icon';
 import { useNotifications } from '../context/NotificationContext';
 import { NotificationSettings } from '../types/notifications';
+import { useAuth } from '../context/AuthContext';
+import { supabase } from '../services/supabase';
+import { useToast } from '../context/ToastContext';
 
 const NotificationSettingsPage: React.FC = () => {
     const { settings, updateSettings } = useNotifications();
+    const { user } = useAuth();
+    const { toast } = useToast();
     const [localSettings, setLocalSettings] = useState<NotificationSettings>(settings);
     const [isSaving, setIsSaving] = useState(false);
+    const [isSendingReset, setIsSendingReset] = useState(false);
 
     const handleSave = async () => {
         setIsSaving(true);
@@ -213,6 +219,55 @@ const NotificationSettingsPage: React.FC = () => {
                         </div>
                     );
                 })}
+            </div>
+
+            <div
+                className="bg-white/[0.02] backdrop-blur-md rounded-xl shadow-sm border border-white/[0.05] p-5 transition-all hover:bg-white/[0.04]"
+            >
+                <div className="flex items-start gap-4">
+                    <div
+                        className="size-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                        style={{ backgroundColor: `#ef444420` }}
+                    >
+                        <Icon name="lock_reset" className="text-2xl" style={{ color: '#ef4444' }} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-4 mb-3">
+                            <div>
+                                <h3 className="text-base font-bold text-white mb-1">Redefinir Senha</h3>
+                                <p className="text-sm text-gray-400">
+                                    Envie um e-mail para redefinir sua senha.
+                                </p>
+                            </div>
+                            <button
+                                onClick={async () => {
+                                    if (!user?.email) {
+                                        toast.error('E-mail do usuário não encontrado.');
+                                        return;
+                                    }
+                                    try {
+                                        setIsSendingReset(true);
+                                        const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
+                                            redirectTo: `${window.location.origin}/#/reset-password`
+                                        });
+                                        if (error) {
+                                            toast.error('Erro ao enviar e-mail de redefinição.');
+                                        } else {
+                                            toast.success('E-mail de redefinição enviado.');
+                                        }
+                                    } finally {
+                                        setIsSendingReset(false);
+                                    }
+                                }}
+                                disabled={isSendingReset}
+                                className="flex min-w-[40px] md:min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 md:h-11 px-4 bg-red-500 text-white text-base font-medium leading-normal gap-2 hover:bg-red-600 transition-colors shadow-[0_0_20px_-5px_rgba(239,68,68,0.3)]"
+                            >
+                                <Icon name="send" />
+                                <span className="truncate hidden md:inline">{isSendingReset ? 'Enviando...' : 'Enviar'}</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             {/* Botão Salvar */}

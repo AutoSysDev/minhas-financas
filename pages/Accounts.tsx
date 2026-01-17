@@ -1,15 +1,17 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '../components/Icon';
+import { PrivateValue } from '../components/PrivateValue';
 import { Dropdown } from '../components/Dropdown';
 import { Modal } from '../components/Modal';
 import { useFinance } from '../context/FinanceContext';
 import { Account, TransactionType } from '../types';
-import { formatCurrency, formatDate } from '../utils/helpers';
+import { formatCurrency, formatDate, getTransactionDate, getAccountCumulativeBalance } from '../utils/helpers';
 import { BANKS } from '../constants';
+import { MonthNavigation } from '../components/MonthNavigation';
 
 const Accounts: React.FC = () => {
-  const { accounts, addAccount, transactions } = useFinance();
+  const { accounts, addAccount, transactions, recalculateBalances, loading } = useFinance();
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
   const [isNewAccountModalOpen, setIsNewAccountModalOpen] = useState(false);
 
@@ -21,14 +23,24 @@ const Accounts: React.FC = () => {
     <div className="flex flex-col gap-6 md:gap-8 animate-fade-in relative pb-20 md:pb-0">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-white text-2xl md:text-4xl font-black leading-tight tracking-[-0.033em]">Minhas Contas</h1>
-        <button
-          onClick={() => setIsNewAccountModalOpen(true)}
-          className="flex min-w-[40px] md:min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 md:h-11 px-4 bg-teal-500 text-white text-base font-medium leading-normal gap-2 hover:bg-teal-600 transition-colors shadow-[0_0_20px_-5px_rgba(45,212,191,0.3)]"
-        >
-          <Icon name="account_balance" />
-          <span className="truncate hidden md:inline">Nova Conta</span>
-          <span className="md:hidden">Nova</span>
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => recalculateBalances()}
+            className="flex min-w-[40px] md:min-w-[40px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 md:h-11 px-4 bg-white/[0.05] text-gray-300 text-base font-medium leading-normal gap-2 hover:bg-white/[0.1] hover:text-white transition-colors border border-white/[0.1]"
+            title="Recalcular Saldos"
+          >
+            <Icon name="sync" className={loading ? "animate-spin" : ""} />
+            <span className="hidden md:inline">Recalcular</span>
+          </button>
+          <button
+            onClick={() => setIsNewAccountModalOpen(true)}
+            className="flex min-w-[40px] md:min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 md:h-11 px-4 bg-teal-500 text-white text-base font-medium leading-normal gap-2 hover:bg-teal-600 transition-colors shadow-[0_0_20px_-5px_rgba(45,212,191,0.3)]"
+          >
+            <Icon name="account_balance" />
+            <span className="truncate hidden md:inline">Nova Conta</span>
+            <span className="md:hidden">Nova</span>
+          </button>
+        </div>
       </div>
 
       {/* Grid de Contas Otimizado */}
@@ -43,10 +55,16 @@ const Accounts: React.FC = () => {
             <div className="flex items-center justify-between gap-3 pl-2">
               <div className="flex items-center gap-3 min-w-0">
                 <div
-                  className="size-10 md:size-12 rounded-lg flex-shrink-0 flex items-center justify-center text-white font-bold text-lg shadow-sm"
+                  className="size-10 md:size-12 rounded-lg flex-shrink-0 flex items-center justify-center text-white font-bold text-lg shadow-sm overflow-hidden relative"
                   style={{ backgroundColor: account.color }}
                 >
-                  {account.icon ? <Icon name={account.icon} className="text-2xl" /> : account.logoText}
+                  {(() => {
+                    const bank = BANKS.find(b => b.name === account.bankName);
+                    if (bank?.logo) {
+                      return <img src={bank.logo} alt={account.bankName} className="w-full h-full object-cover" />;
+                    }
+                    return account.icon ? <Icon name={account.icon} className="text-2xl" /> : account.logoText;
+                  })()}
                 </div>
                 <div className="min-w-0">
                   <h3 className="text-base font-bold text-white group-hover:text-teal-400 transition-colors truncate">
@@ -60,7 +78,9 @@ const Accounts: React.FC = () => {
 
               <div className="text-right shrink-0">
                 <p className="text-base md:text-lg font-black text-white whitespace-nowrap">
-                  {formatCurrency(account.balance)}
+                  <PrivateValue>
+                    {formatCurrency(getAccountCumulativeBalance(transactions, account.id, new Date().getFullYear(), new Date().getMonth()))}
+                  </PrivateValue>
                 </p>
               </div>
             </div>
@@ -127,7 +147,7 @@ const NewAccountModal: React.FC<{ onClose: () => void; onSave: (a: any) => void 
           <label className="block text-sm font-bold text-gray-300 mb-2">Instituição</label>
           <div className="relative">
             <Dropdown
-              options={BANKS.map(bank => ({ label: bank.name, value: bank.id }))}
+              options={BANKS.map(bank => ({ label: bank.name, value: bank.id, logo: bank.logo }))}
               value={selectedBankId}
               onChange={handleBankChange}
               className="w-full"
@@ -163,9 +183,14 @@ const NewAccountModal: React.FC<{ onClose: () => void; onSave: (a: any) => void 
 };
 
 const AccountDetailModal: React.FC<{ account: Account; onClose: () => void; allTransactions: any[] }> = ({ account, onClose, allTransactions }) => {
-  const { updateAccount, deleteAccount, cards } = useFinance();
+  const { updateAccount, deleteAccount, cards, accounts } = useFinance();
   const [typeFilter, setTypeFilter] = useState<'all' | 'income' | 'expense'>('all');
   const [isEditMode, setIsEditMode] = useState(false);
+  const [currentDate, setCurrentDate] = useState(new Date());
+
+  const selectedMonth = currentDate.getMonth();
+  const selectedYear = currentDate.getFullYear();
+  const isCurrentMonth = selectedMonth === new Date().getMonth() && selectedYear === new Date().getFullYear();
 
   // Edit form state
   const [editName, setEditName] = useState(account.name);
@@ -179,10 +204,17 @@ const AccountDetailModal: React.FC<{ account: Account; onClose: () => void; allT
 
   const filteredTransactions = allTransactions.filter(t => {
     if (t.accountId !== account.id) return false;
+
+    const tDate = getTransactionDate(t.date);
+    if (tDate.getMonth() !== selectedMonth || tDate.getFullYear() !== selectedYear) return false;
+
     if (typeFilter === 'income' && t.type !== TransactionType.INCOME && t.type !== TransactionType.TRANSFER) return false;
     if (typeFilter === 'expense' && t.type !== TransactionType.EXPENSE) return false;
     return true;
   });
+
+  // Calculate Historical Balance for this account using the centralized helper
+  const historicalBalance = getAccountCumulativeBalance(allTransactions, account.id, selectedYear, selectedMonth);
 
   const handleSave = async () => {
     const selectedBank = BANKS.find(b => b.id === editBankId);
@@ -239,7 +271,7 @@ const AccountDetailModal: React.FC<{ account: Account; onClose: () => void; allT
               <label className="block text-xs font-bold text-gray-400 mb-2">Banco</label>
               <div className="relative">
                 <Dropdown
-                  options={BANKS.map(bank => ({ label: bank.name, value: bank.id }))}
+                  options={BANKS.map(bank => ({ label: bank.name, value: bank.id, logo: bank.logo }))}
                   value={editBankId}
                   onChange={handleBankChange}
                   className="w-full"
@@ -248,10 +280,14 @@ const AccountDetailModal: React.FC<{ account: Account; onClose: () => void; allT
               {/* Preview */}
               <div className="mt-3 flex items-center gap-3 p-3 rounded-lg bg-white/[0.03] border border-white/[0.05]">
                 <div
-                  className="size-12 rounded-lg flex items-center justify-center text-white shadow-sm"
+                  className="size-12 rounded-lg flex items-center justify-center text-white shadow-sm overflow-hidden relative"
                   style={{ backgroundColor: selectedBank.color }}
                 >
-                  <Icon name={selectedBank.icon} className="text-2xl" />
+                  {selectedBank.logo ? (
+                    <img src={selectedBank.logo} alt={selectedBank.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <Icon name={selectedBank.icon} className="text-2xl" />
+                  )}
                 </div>
                 <div>
                   <p className="text-xs text-gray-400">Preview</p>
@@ -311,7 +347,17 @@ const AccountDetailModal: React.FC<{ account: Account; onClose: () => void; allT
                   <Dropdown
                     options={[
                       { label: 'Nenhum', value: '' },
-                      ...cards.map(card => ({ label: `${card.name} •••• ${card.lastDigits}`, value: card.id }))
+                      ...cards.map(card => {
+                        let logo = undefined;
+                        if (card.linkedAccountId) {
+                          const linkedAccount = accounts.find(a => a.id === card.linkedAccountId);
+                          if (linkedAccount) {
+                            const bank = BANKS.find(b => b.name === linkedAccount.bankName);
+                            logo = bank?.logo;
+                          }
+                        }
+                        return { label: `${card.name} •••• ${card.lastDigits}`, value: card.id, logo };
+                      })
                     ]}
                     value={editDefaultCardId}
                     onChange={setEditDefaultCardId}
@@ -359,8 +405,14 @@ const AccountDetailModal: React.FC<{ account: Account; onClose: () => void; allT
           </button>
 
           <div className="flex items-center gap-3">
-            <div className="size-10 rounded-lg bg-white/20 backdrop-blur-md flex items-center justify-center text-lg font-bold shadow-inner shrink-0">
-              {account.icon ? <Icon name={account.icon} /> : account.logoText}
+            <div className="size-10 rounded-lg bg-white/20 backdrop-blur-md flex items-center justify-center text-lg font-bold shadow-inner shrink-0 overflow-hidden relative">
+              {(() => {
+                const bank = BANKS.find(b => b.name === account.bankName);
+                if (bank?.logo) {
+                  return <img src={bank.logo} alt={account.bankName} className="w-full h-full object-cover" />;
+                }
+                return account.icon ? <Icon name={account.icon} /> : account.logoText;
+              })()}
             </div>
             <div className="min-w-0 flex-1">
               <p className="opacity-80 text-[10px] font-bold uppercase tracking-wide">{account.bankName}</p>
@@ -369,8 +421,13 @@ const AccountDetailModal: React.FC<{ account: Account; onClose: () => void; allT
           </div>
 
           <div className="bg-black/10 rounded-lg p-2 flex items-center justify-between backdrop-blur-sm mt-1">
-            <p className="text-[10px] font-bold opacity-80 uppercase">Saldo Disponível</p>
-            <p className="text-xl font-black whitespace-nowrap leading-none">{formatCurrency(account.balance)}</p>
+            <div className="flex flex-col">
+              <p className="text-[10px] font-bold opacity-80 uppercase">Saldo em {currentDate.toLocaleDateString('pt-BR', { month: 'long' })}</p>
+              <p className="text-xl font-black whitespace-nowrap leading-none"><PrivateValue>{formatCurrency(historicalBalance)}</PrivateValue></p>
+            </div>
+            <div className="scale-75 origin-right">
+              <MonthNavigation currentDate={currentDate} onMonthChange={setCurrentDate} />
+            </div>
           </div>
         </div>
 
@@ -402,7 +459,9 @@ const AccountDetailModal: React.FC<{ account: Account; onClose: () => void; allT
                     </div>
                   </div>
                   <p className={`font-bold text-xs whitespace-nowrap ml-2 ${t.type === TransactionType.INCOME ? 'text-green-400' : 'text-red-400'}`}>
-                    {t.type === TransactionType.INCOME ? '+' : '-'} {formatCurrency(t.amount)}
+                    <PrivateValue>
+                      {t.type === TransactionType.INCOME ? '+' : '-'} {formatCurrency(t.amount)}
+                    </PrivateValue>
                   </p>
                 </div>
               )) : (

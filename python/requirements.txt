@@ -1,0 +1,12 @@
+supabase
+yfinance
+python-dotenv
+pandas
+ofxparse
+requests
+pdfplumber
+flask
+flask-cors
+PyPDF2
+openpyxl
+ofxparse

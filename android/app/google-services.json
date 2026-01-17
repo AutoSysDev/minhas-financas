@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "158858871662",
+    "project_id": "monelyfinance",
+    "storage_bucket": "monelyfinance.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:158858871662:android:c91225252b4e30e086777f",
+        "android_client_info": {
+          "package_name": "com.monelyfinance.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDlzZMxJJCUAKv-CKe1C7EM130kCH_PC80"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

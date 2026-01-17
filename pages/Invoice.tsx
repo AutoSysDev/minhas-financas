@@ -6,8 +6,10 @@ import { TransactionType } from '../types';
 import { useSearchParams } from 'react-router-dom';
 import { formatCurrency, formatDate } from '../utils/helpers';
 
+import { BANKS } from '../constants';
+
 const Invoice: React.FC = () => {
-  const { cards, transactions } = useFinance();
+  const { cards, transactions, accounts } = useFinance();
   const [searchParams] = useSearchParams();
   const [selectedCardId, setSelectedCardId] = useState('');
 
@@ -93,7 +95,17 @@ const Invoice: React.FC = () => {
                 <p className="text-sm font-medium leading-normal pb-2 text-gray-400">Selecione o Cartão</p>
                 <div className="relative">
                   <Dropdown
-                    options={cards.map(card => ({ label: `${card.name} **** ${card.lastDigits}`, value: card.id }))}
+                    options={cards.map(card => {
+                      let logo = undefined;
+                      if (card.linkedAccountId) {
+                        const linkedAccount = accounts.find(a => a.id === card.linkedAccountId);
+                        if (linkedAccount) {
+                          const bank = BANKS.find(b => b.name === linkedAccount.bankName);
+                          logo = bank?.logo;
+                        }
+                      }
+                      return { label: `${card.name} **** ${card.lastDigits}`, value: card.id, logo };
+                    })}
                     value={selectedCardId}
                     onChange={setSelectedCardId}
                     className="w-full"

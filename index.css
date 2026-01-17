@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* Privacy Mode Styles */
 body.privacy-mode .private-value {
   filter: blur(6px);
@@ -8,4 +12,83 @@ body.privacy-mode .private-value {
 
 body.privacy-mode .private-value:hover {
   filter: blur(2px);
+}
+
+/* Date Picker Calendar Centering - iOS & Android Fix */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+}
+
+/* Ensure date input calendars are centered on mobile */
+@media (max-width: 768px) {
+
+  input[type="date"]::-webkit-datetime-edit,
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    position: relative;
+  }
+
+  /* Fix for date picker positioning - standard focus */
+  input[type="date"]:focus {
+    outline: none;
+    border-color: rgba(20, 184, 166, 0.5); /* teal-500/50 */
+  }
+}
+
+/* Hide Number Input Spinners */
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+}
+
+input[type=number] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* Global Scrollbar Hiding - As requested */
+::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+}
+
+* {
+  -ms-overflow-style: none !important;  /* IE and Edge */
+  scrollbar-width: none !important;  /* Firefox */
+}
+
+/* Custom Scrollbar Styles - Disabled/Overridden by global hide */
+/* .custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+} */
+
+/* Global Mobile Improvements */
+html,
+body {
+  overscroll-behavior-y: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Ensure smooth scrolling on iOS */
+.custom-scrollbar {
+  -webkit-overflow-scrolling: touch;
 }

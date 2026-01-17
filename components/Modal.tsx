@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from './Icon';
 
@@ -14,17 +14,6 @@ interface ModalProps {
 }
 
 export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, hideHeader = false, noPadding = false, maxWidth = 'max-w-md', headerActions }) => {
-    useEffect(() => {
-        if (isOpen) {
-            document.body.style.overflow = 'hidden';
-        } else {
-            document.body.style.overflow = 'unset';
-        }
-        return () => {
-            document.body.style.overflow = 'unset';
-        };
-    }, [isOpen]);
-
     if (!isOpen) return null;
 
     return createPortal(
@@ -35,8 +24,14 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, 
                 onClick={onClose}
             />
 
-            {/* Modal Content (Glassmorphism) */}
-            <div className={`relative bg-[#0f1216]/80 backdrop-blur-xl border border-white/[0.08] rounded-2xl shadow-2xl w-full ${maxWidth} flex flex-col max-h-[90vh] overflow-hidden animate-scale-up z-10 ring-1 ring-white/5`}>
+            {/* Modal Content (Glassmorphism) - iOS Scroll Fix */}
+            <div
+                className={`relative bg-[#0f1216]/80 backdrop-blur-xl border border-white/[0.08] rounded-2xl shadow-2xl w-full ${maxWidth} flex flex-col max-h-[90vh] overflow-hidden animate-scale-up z-10 ring-1 ring-white/5`}
+                style={{
+                    overscrollBehavior: 'contain',
+                    WebkitOverflowScrolling: 'touch'
+                }}
+            >
 
                 {/* Inner Glow/Highlight */}
                 <div className="absolute inset-0 rounded-2xl pointer-events-none shadow-[inset_0_0_0_1px_rgba(255,255,255,0.05)]"></div>
@@ -56,7 +51,13 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, 
                     </div>
                 )}
 
-                <div className={`overflow-y-auto ${noPadding ? '' : 'p-6'}`}>
+                <div
+                    className={`flex-1 min-h-0 overflow-y-auto ${noPadding ? '' : 'p-6'}`}
+                    style={{
+                        overscrollBehavior: 'contain',
+                        WebkitOverflowScrolling: 'touch'
+                    }}
+                >
                     {children}
                 </div>
             </div>
