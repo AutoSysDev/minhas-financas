@@ -58,7 +58,7 @@ const Calendar: React.FC = () => {
 
     // Dias vazios antes do dia 1
     for (let i = 0; i < firstDayOfMonth; i++) {
-      days.push(<div key={`empty-${i}`} className={`h-16 md:h-20 border transition-colors ${theme === 'light' ? 'bg-gray-50 border-gray-100' : 'bg-white/[0.01] border-white/[0.05]'}`}></div>);
+      days.push(<div key={`empty-${i}`} className={`min-h-[4rem] md:min-h-[5rem] border transition-colors ${theme === 'light' ? 'bg-gray-50 border-gray-100' : 'bg-white/[0.01] border-white/[0.05]'}`}></div>);
     }
 
     // Dias do mês
@@ -79,7 +79,7 @@ const Calendar: React.FC = () => {
           key={day}
           onClick={() => setSelectedDate(new Date(currentDate.getFullYear(), currentDate.getMonth(), day))}
           className={`
-            h-16 md:h-20 border p-1 md:p-2 cursor-pointer transition-all flex flex-col justify-between group
+            min-h-[4rem] md:min-h-[5rem] border p-1 md:p-2 cursor-pointer transition-all flex flex-col justify-between group
             ${isSelected
               ? (theme === 'light' ? 'bg-teal-50 border-teal-200' : 'bg-teal-500/10 border-teal-500/50 shadow-[inset_0_0_20px_rgba(45,212,191,0.1)]')
               : (theme === 'light' ? 'bg-white border-gray-100 hover:bg-gray-50' : 'bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.05]')
@@ -179,14 +179,14 @@ const Calendar: React.FC = () => {
               {selectedDayTransactions.length > 0 ? (
                 selectedDayTransactions.map(t => (
                   <div key={t.id} className={`p-3 rounded-xl flex items-center justify-between gap-3 border transition-all ${theme === 'light'
-                      ? 'bg-gray-50 border-gray-100 hover:bg-gray-100'
-                      : 'bg-white/[0.03] border-white/[0.05] hover:bg-white/[0.05]'
+                    ? 'bg-gray-50 border-gray-100 hover:bg-gray-100'
+                    : 'bg-white/[0.03] border-white/[0.05] hover:bg-white/[0.05]'
                     }`}>
                     <div className="flex flex-col min-w-0">
                       <p className={`text-sm font-bold truncate transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>{t.description}</p>
                       <span className={`text-[10px] px-1.5 py-0.5 rounded w-fit mt-1 border transition-colors ${theme === 'light'
-                          ? 'text-slate-500 bg-gray-100 border-gray-200'
-                          : 'text-gray-400 bg-white/[0.05] border-white/[0.05]'
+                        ? 'text-slate-500 bg-gray-100 border-gray-200'
+                        : 'text-gray-400 bg-white/[0.05] border-white/[0.05]'
                         }`}>
                         {t.category}
                       </span>

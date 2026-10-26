@@ -7,6 +7,11 @@ export const formatCurrency = (value: number): string => {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 };
 
+export const formatPercent = (value: number, decimals = 2): string => {
+  const sign = value >= 0 ? '+' : '';
+  return `${sign}${value.toFixed(decimals)}%`;
+};
+
 export const formatDate = (dateString: string): string => {
   // Assume YYYY-MM-DD input or keep as is if already formatted
   if (dateString.includes('-')) {
@@ -19,9 +24,10 @@ export const formatDate = (dateString: string): string => {
 export const getTransactionDate = (dateStr: string): Date => {
   if (!dateStr) return new Date();
 
-  // Formato ISO (YYYY-MM-DD)
+  // Formato ISO (YYYY-MM-DD ou YYYY-MM-DDTHH:mm:ss)
   if (dateStr.includes('-')) {
-    const [year, month, day] = dateStr.split('-').map(Number);
+    const cleanDateStr = dateStr.split('T')[0];
+    const [year, month, day] = cleanDateStr.split('-').map(Number);
     return new Date(year, month - 1, day);
   }
 
@@ -45,16 +51,19 @@ export const getTransactionDate = (dateStr: string): Date => {
  */
 export const getAccountCumulativeBalance = (
   transactions: any[],
-  accountId: string,
+  account: any,
   year: number,
   month: number // 0-indexed (0 = Jan, 11 = Dec)
 ): number => {
   // Define the end of the target month
   const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59);
 
-  return transactions.reduce((acc, t) => {
+  // We rely SOLELY on transactions because the system creates an initial transaction
+  // for the starting balance. Adding account.balance here would cause double counting.
+
+  const txnSum = transactions.reduce((acc, t) => {
     // Filter by account
-    if (t.accountId !== accountId) return acc;
+    if (t.accountId !== account.id) return acc;
 
     // Filter by paid status
     if (!t.isPaid) return acc;
@@ -72,6 +81,8 @@ export const getAccountCumulativeBalance = (
 
     return acc;
   }, 0);
+
+  return txnSum;
 };
 
 /**
@@ -84,7 +95,9 @@ export const getTotalCumulativeBalance = (
   month: number
 ): number => {
   return accounts.reduce((total, account) => {
-    return total + getAccountCumulativeBalance(transactions, account.id, year, month);
+    // Skip accounts marked as "Ignore in Totals"
+    if (account.ignoreInTotal) return total;
+    return total + getAccountCumulativeBalance(transactions, account, year, month);
   }, 0);
 };
 
@@ -400,4 +413,49 @@ export const logError = (
   } catch (e) {
     console.error('[MonelyError] Failed to serialize error', e);
   }
+};
+
+/**
+ * Calculate the current invoice amount for a card based on today's date
+ */
+export const calculateCurrentInvoiceAmount = (
+  card: any,
+  transactions: any[],
+  targetDate: Date = new Date()
+): number => {
+  const closingDay = Number(card.closingDay) || 1;
+  const currentYear = targetDate.getFullYear();
+  const currentMonth = targetDate.getMonth();
+
+  // Calculate potential closing dates
+  // closingThisMonth is the closing date in the current month
+  const closingThisMonth = new Date(currentYear, currentMonth, closingDay, 23, 59, 59, 999);
+
+  // If targetDate is AFTER the closing date of this month, the "current" invoice is the next one.
+  // If targetDate is BEFORE or ON the closing date, the "current" invoice is this one.
+  let closingDate: Date;
+  if (targetDate > closingThisMonth) {
+    closingDate = new Date(currentYear, currentMonth + 1, closingDay, 23, 59, 59, 999);
+  } else {
+    closingDate = closingThisMonth;
+  }
+
+  // The start date is the day after the previous closing date
+  const startDate = new Date(closingDate);
+  startDate.setMonth(startDate.getMonth() - 1);
+  startDate.setDate(startDate.getDate() + 1);
+  startDate.setHours(0, 0, 0, 0);
+
+  return transactions.reduce((acc, t) => {
+    if (t.cardId !== card.id) return acc;
+
+    const tDate = getTransactionDate(t.date);
+
+    if (tDate >= startDate && tDate <= closingDate) {
+      if (t.type === 'EXPENSE') return acc + Number(t.amount);
+      if (t.type === 'INCOME') return acc - Number(t.amount);
+    }
+
+    return acc;
+  }, 0);
 };

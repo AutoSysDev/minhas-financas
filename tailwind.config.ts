@@ -16,6 +16,9 @@ export default {
         success: '#16a34a',
         'background-light': '#f6f7f8',
         'background-dark': '#101922',
+        'background-main': '#0f1216',
+        'surface-glass': 'rgba(255, 255, 255, 0.05)',
+        'border-glass': 'rgba(255, 255, 255, 0.1)',
       },
       fontFamily: {
         display: ['Manrope', 'sans-serif'],

@@ -15,6 +15,9 @@ const Goals: React.FC = () => {
   const { theme } = useTheme();
   const [isNewGoalModalOpen, setIsNewGoalModalOpen] = useState(false);
   const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
+
+  const filteredGoals = goals.filter(g => showArchived ? g.archived : !g.archived);
 
   return (
     <div className="flex flex-col gap-6 animate-fade-in pb-20 md:pb-0 relative">
@@ -23,41 +26,59 @@ const Goals: React.FC = () => {
           <h1 className={`text-2xl md:text-3xl font-black leading-tight tracking-[-0.033em] transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>Metas</h1>
           <p className={`mt-1 text-sm transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Acompanhe seus sonhos financeiros.</p>
         </div>
-        <button
-          onClick={() => setIsNewGoalModalOpen(true)}
-          className="flex min-w-[40px] md:min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-teal-500 text-white text-sm font-medium leading-normal gap-2 hover:bg-teal-600 transition-colors shadow-[0_0_20px_-5px_rgba(45,212,191,0.3)]"
-        >
-          <Icon name="add_circle" />
-          <span className="truncate hidden md:inline">Nova Meta</span>
-          <span className="md:hidden">Nova</span>
-        </button>
-      </div>
-
-      {goals.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center animate-fade-in">
-          <div className={`w-24 h-24 rounded-full flex items-center justify-center mb-6 transition-colors ${theme === 'light' ? 'bg-gray-100' : 'bg-white/[0.05]'}`}>
-            <Icon name="savings" className={`text-4xl transition-colors ${theme === 'light' ? 'text-gray-400' : 'text-gray-600'}`} />
-          </div>
-          <h2 className={`text-xl font-bold mb-2 transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>Nenhuma meta encontrada</h2>
-          <p className={`max-w-md mx-auto mb-8 transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Defina objetivos financeiros para realizar seus sonhos. Acompanhe seu progresso e mantenha o foco.</p>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowArchived(!showArchived)}
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold transition-all ${showArchived
+                ? (theme === 'light' ? 'bg-slate-200 text-slate-800' : 'bg-white/20 text-white')
+                : (theme === 'light' ? 'bg-slate-100 text-slate-500 hover:bg-slate-200' : 'bg-white/5 text-gray-400 hover:bg-white/10')
+              }`}
+          >
+            <Icon name={showArchived ? "visibility_off" : "history"} />
+            {showArchived ? "Ver Ativas" : "Ver Arquivadas"}
+          </button>
           <button
             onClick={() => setIsNewGoalModalOpen(true)}
-            className="px-6 py-3 rounded-xl bg-teal-500 text-white font-bold hover:bg-teal-600 transition-all shadow-[0_0_20px_-5px_rgba(45,212,191,0.3)]"
+            className="flex min-w-[40px] md:min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-teal-500 text-white text-sm font-medium leading-normal gap-2 hover:bg-teal-600 transition-colors shadow-[0_0_20px_-5px_rgba(45,212,191,0.3)]"
           >
-            Criar Primeira Meta
+            <Icon name="add_circle" />
+            <span className="truncate hidden md:inline">Nova Meta</span>
+            <span className="md:hidden">Nova</span>
           </button>
+        </div>
+      </div>
+
+      {filteredGoals.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 text-center animate-fade-in">
+          <div className={`w-24 h-24 rounded-full flex items-center justify-center mb-6 transition-colors ${theme === 'light' ? 'bg-gray-100' : 'bg-white/[0.05]'}`}>
+            <Icon name={showArchived ? "archive" : "savings"} className={`text-4xl transition-colors ${theme === 'light' ? 'text-gray-400' : 'text-gray-600'}`} />
+          </div>
+          <h2 className={`text-xl font-bold mb-2 transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+            {showArchived ? "Nenhuma meta arquivada" : "Nenhuma meta encontrada"}
+          </h2>
+          <p className={`max-w-md mx-auto mb-8 transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>
+            {showArchived ? "Suas metas arquivadas aparecerão aqui." : "Defina objetivos financeiros para realizar seus sonhos. Acompanhe seu progresso e mantenha o foco."}
+          </p>
+          {!showArchived && (
+            <button
+              onClick={() => setIsNewGoalModalOpen(true)}
+              className="px-6 py-3 rounded-xl bg-teal-500 text-white font-bold hover:bg-teal-600 transition-all shadow-[0_0_20px_-5px_rgba(45,212,191,0.3)]"
+            >
+              Criar Primeira Meta
+            </button>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-          {goals.map(goal => {
+          {filteredGoals.map(goal => {
             const percentage = goal.targetAmount > 0 ? Math.min((goal.currentAmount / goal.targetAmount) * 100, 100) : 0;
             return (
               <div
                 key={goal.id}
                 onClick={() => setSelectedGoal(goal)}
                 className={`rounded-xl shadow-sm border p-5 flex flex-col gap-4 transition-all duration-200 cursor-pointer group ${theme === 'light'
-                    ? 'bg-white border-gray-200 hover:bg-gray-50 hover:border-teal-500/30'
-                    : 'bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.04] hover:border-teal-500/30'
+                  ? 'bg-white border-gray-200 hover:bg-gray-50 hover:border-teal-500/30'
+                  : 'bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.04] hover:border-teal-500/30'
                   }`}
               >
                 <div className="flex items-start gap-4">
@@ -145,8 +166,8 @@ const NewGoalModal: React.FC<{ onClose: () => void; onSave: (g: any) => void }> 
             placeholder="Ex: Viagem, Carro Novo"
             required
             className={`w-full px-4 py-3 rounded-xl border outline-none transition-all placeholder-gray-500 ${theme === 'light'
-                ? 'bg-white border-gray-200 text-slate-900 focus:ring-2 focus:ring-teal-500/20'
-                : 'bg-white/[0.05] border-white/[0.1] text-white focus:ring-2 focus:ring-teal-500/50'
+              ? 'bg-white border-gray-200 text-slate-900 focus:ring-2 focus:ring-teal-500/20'
+              : 'bg-white/[0.05] border-white/[0.1] text-white focus:ring-2 focus:ring-teal-500/50'
               }`}
           />
         </div>
@@ -162,8 +183,8 @@ const NewGoalModal: React.FC<{ onClose: () => void; onSave: (g: any) => void }> 
               placeholder="0,00"
               required
               className={`w-full pl-12 pr-4 py-3 rounded-xl border text-xl font-bold outline-none transition-all placeholder-gray-500 ${theme === 'light'
-                  ? 'bg-white border-gray-200 text-slate-900 focus:ring-2 focus:ring-teal-500/20'
-                  : 'bg-white/[0.05] border-white/[0.1] text-white focus:ring-2 focus:ring-teal-500/50'
+                ? 'bg-white border-gray-200 text-slate-900 focus:ring-2 focus:ring-teal-500/20'
+                : 'bg-white/[0.05] border-white/[0.1] text-white focus:ring-2 focus:ring-teal-500/50'
                 }`}
             />
           </div>
@@ -179,8 +200,8 @@ const NewGoalModal: React.FC<{ onClose: () => void; onSave: (g: any) => void }> 
               onChange={e => setCurrentAmount(e.target.value)}
               placeholder="0,00"
               className={`w-full pl-12 pr-4 py-3 rounded-xl border outline-none transition-all placeholder-gray-500 ${theme === 'light'
-                  ? 'bg-white border-gray-200 text-slate-900 focus:ring-2 focus:ring-teal-500/20'
-                  : 'bg-white/[0.05] border-white/[0.1] text-white focus:ring-2 focus:ring-teal-500/50'
+                ? 'bg-white border-gray-200 text-slate-900 focus:ring-2 focus:ring-teal-500/20'
+                : 'bg-white/[0.05] border-white/[0.1] text-white focus:ring-2 focus:ring-teal-500/50'
                 }`}
             />
           </div>
@@ -193,8 +214,8 @@ const NewGoalModal: React.FC<{ onClose: () => void; onSave: (g: any) => void }> 
             onChange={e => setDeadline(e.target.value)}
             required
             className={`w-full px-4 py-3 rounded-xl border outline-none transition-all ${theme === 'light'
-                ? 'bg-white border-gray-200 text-slate-900 focus:ring-2 focus:ring-teal-500/20'
-                : 'bg-white/[0.05] border-white/[0.1] text-white focus:ring-2 focus:ring-teal-500/50'
+              ? 'bg-white border-gray-200 text-slate-900 focus:ring-2 focus:ring-teal-500/20'
+              : 'bg-white/[0.05] border-white/[0.1] text-white focus:ring-2 focus:ring-teal-500/50'
               }`}
           />
         </div>
@@ -207,10 +228,10 @@ const NewGoalModal: React.FC<{ onClose: () => void; onSave: (g: any) => void }> 
                 type="button"
                 onClick={() => setSelectedIconId(item.id)}
                 className={`p-2 rounded-lg border transition-all flex flex-col items-center justify-center gap-1 h-16 ${selectedIconId === item.id
-                    ? 'bg-teal-500 text-white border-teal-500 shadow-[0_0_10px_rgba(45,212,191,0.5)]'
-                    : (theme === 'light'
-                      ? 'bg-gray-100 text-slate-400 border-transparent hover:bg-gray-200'
-                      : 'bg-white/[0.05] text-gray-400 border-transparent hover:bg-white/[0.1]')
+                  ? 'bg-teal-500 text-white border-teal-500 shadow-[0_0_10px_rgba(45,212,191,0.5)]'
+                  : (theme === 'light'
+                    ? 'bg-gray-100 text-slate-400 border-transparent hover:bg-gray-200'
+                    : 'bg-white/[0.05] text-gray-400 border-transparent hover:bg-white/[0.1]')
                   }`}
                 title={item.name}
               >
@@ -353,8 +374,8 @@ const GoalDetailModal: React.FC<{ goal: Goal; onClose: () => void; onUpdate: (id
                 placeholder="0,00"
                 required
                 className={`w-full pl-12 pr-4 py-4 rounded-xl border text-2xl font-bold outline-none transition-all placeholder-gray-600 ${theme === 'light'
-                    ? 'bg-white border-gray-200 text-slate-900 focus:ring-2 focus:ring-teal-500/20'
-                    : 'bg-white/[0.05] border-white/[0.1] text-white focus:ring-2 focus:ring-teal-500/50'
+                  ? 'bg-white border-gray-200 text-slate-900 focus:ring-2 focus:ring-teal-500/20'
+                  : 'bg-white/[0.05] border-white/[0.1] text-white focus:ring-2 focus:ring-teal-500/50'
                   }`}
               />
             </div>
@@ -385,8 +406,8 @@ const GoalDetailModal: React.FC<{ goal: Goal; onClose: () => void; onUpdate: (id
                   onChange={e => setSelectedAccountId(e.target.value)}
                   required={useAccountBalance}
                   className={`w-full px-4 py-3 rounded-xl border outline-none transition-all ${theme === 'light'
-                      ? 'bg-white border-gray-200 text-slate-900 focus:ring-2 focus:ring-teal-500/20'
-                      : 'bg-black/20 text-white border-white/[0.1] focus:ring-2 focus:ring-teal-500/50 [&>option]:bg-[#1a1d21]'
+                    ? 'bg-white border-gray-200 text-slate-900 focus:ring-2 focus:ring-teal-500/20'
+                    : 'bg-black/20 text-white border-white/[0.1] focus:ring-2 focus:ring-teal-500/50 [&>option]:bg-[#1a1d21]'
                     }`}
                 >
                   <option value="">Selecione a conta...</option>
@@ -424,8 +445,8 @@ const GoalDetailModal: React.FC<{ goal: Goal; onClose: () => void; onUpdate: (id
               onChange={e => setName(e.target.value)}
               required
               className={`w-full px-4 py-3 rounded-xl border outline-none transition-all placeholder-gray-500 ${theme === 'light'
-                  ? 'bg-white border-gray-200 text-slate-900 focus:ring-2 focus:ring-teal-500/20'
-                  : 'bg-white/[0.05] border-white/[0.1] text-white focus:ring-2 focus:ring-teal-500/50'
+                ? 'bg-white border-gray-200 text-slate-900 focus:ring-2 focus:ring-teal-500/20'
+                : 'bg-white/[0.05] border-white/[0.1] text-white focus:ring-2 focus:ring-teal-500/50'
                 }`}
             />
           </div>
@@ -440,8 +461,8 @@ const GoalDetailModal: React.FC<{ goal: Goal; onClose: () => void; onUpdate: (id
                 onChange={e => setTargetAmount(e.target.value)}
                 required
                 className={`w-full pl-12 pr-4 py-3 rounded-xl border text-xl font-bold outline-none transition-all placeholder-gray-500 ${theme === 'light'
-                    ? 'bg-white border-gray-200 text-slate-900 focus:ring-2 focus:ring-teal-500/20'
-                    : 'bg-white/[0.05] border-white/[0.1] text-white focus:ring-2 focus:ring-teal-500/50'
+                  ? 'bg-white border-gray-200 text-slate-900 focus:ring-2 focus:ring-teal-500/20'
+                  : 'bg-white/[0.05] border-white/[0.1] text-white focus:ring-2 focus:ring-teal-500/50'
                   }`}
               />
             </div>
@@ -456,8 +477,8 @@ const GoalDetailModal: React.FC<{ goal: Goal; onClose: () => void; onUpdate: (id
                 value={currentAmount}
                 onChange={e => setCurrentAmount(e.target.value)}
                 className={`w-full pl-12 pr-4 py-3 rounded-xl border outline-none transition-all placeholder-gray-500 ${theme === 'light'
-                    ? 'bg-white border-gray-200 text-slate-900 focus:ring-2 focus:ring-teal-500/20'
-                    : 'bg-white/[0.05] border-white/[0.1] text-white focus:ring-2 focus:ring-teal-500/50'
+                  ? 'bg-white border-gray-200 text-slate-900 focus:ring-2 focus:ring-teal-500/20'
+                  : 'bg-white/[0.05] border-white/[0.1] text-white focus:ring-2 focus:ring-teal-500/50'
                   }`}
               />
             </div>
@@ -470,8 +491,8 @@ const GoalDetailModal: React.FC<{ goal: Goal; onClose: () => void; onUpdate: (id
               onChange={e => setDeadline(e.target.value)}
               required
               className={`w-full px-4 py-3 rounded-xl border outline-none transition-all ${theme === 'light'
-                  ? 'bg-white border-gray-200 text-slate-900 focus:ring-2 focus:ring-teal-500/20'
-                  : 'bg-white/[0.05] border-white/[0.1] text-white focus:ring-2 focus:ring-teal-500/50'
+                ? 'bg-white border-gray-200 text-slate-900 focus:ring-2 focus:ring-teal-500/20'
+                : 'bg-white/[0.05] border-white/[0.1] text-white focus:ring-2 focus:ring-teal-500/50'
                 }`}
             />
           </div>
@@ -484,10 +505,10 @@ const GoalDetailModal: React.FC<{ goal: Goal; onClose: () => void; onUpdate: (id
                   type="button"
                   onClick={() => setSelectedIconId(item.id)}
                   className={`p-2 rounded-lg border transition-all flex flex-col items-center justify-center gap-1 h-16 ${selectedIconId === item.id
-                      ? 'bg-teal-500 text-white border-teal-500 shadow-[0_0_10px_rgba(45,212,191,0.5)]'
-                      : (theme === 'light'
-                        ? 'bg-gray-100 text-slate-400 border-transparent hover:bg-gray-200'
-                        : 'bg-white/[0.05] text-gray-400 border-transparent hover:bg-white/[0.1]')
+                    ? 'bg-teal-500 text-white border-teal-500 shadow-[0_0_10px_rgba(45,212,191,0.5)]'
+                    : (theme === 'light'
+                      ? 'bg-gray-100 text-slate-400 border-transparent hover:bg-gray-200'
+                      : 'bg-white/[0.05] text-gray-400 border-transparent hover:bg-white/[0.1]')
                     }`}
                 >
                   <Icon name={item.icon} />
@@ -571,21 +592,32 @@ const GoalDetailModal: React.FC<{ goal: Goal; onClose: () => void; onUpdate: (id
             </button>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <button
               onClick={() => setIsEditing(true)}
               className={`flex items-center justify-center gap-2 h-12 rounded-xl font-bold transition-all ${theme === 'light' ? 'bg-gray-100 text-slate-600 hover:bg-gray-200' : 'bg-white/[0.05] text-gray-400 hover:bg-white/[0.1]'
                 }`}
             >
               <Icon name="edit" />
-              Editar
+              <span className="hidden sm:inline">Editar</span>
+            </button>
+            <button
+              onClick={() => {
+                onUpdate(goal.id, { archived: !goal.archived });
+                onClose();
+              }}
+              className={`flex items-center justify-center gap-2 h-12 rounded-xl font-bold transition-all ${theme === 'light' ? 'bg-gray-100 text-slate-600 hover:bg-gray-200' : 'bg-white/[0.05] text-gray-400 hover:bg-white/[0.1]'
+                }`}
+            >
+              <Icon name={goal.archived ? "unarchive" : "archive"} />
+              <span className="hidden sm:inline">{goal.archived ? "Ativar" : "Arquivar"}</span>
             </button>
             <button
               onClick={handleDelete}
               className="flex items-center justify-center gap-2 h-12 rounded-xl font-bold text-red-400 bg-red-500/10 hover:bg-red-500/20 transition-all"
             >
               <Icon name="delete" />
-              Excluir
+              <span className="hidden sm:inline">Excluir</span>
             </button>
           </div>
         </div>

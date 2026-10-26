@@ -8,6 +8,7 @@ import { useTransactions } from '../hooks/useTransactions';
 import { useAccounts, useCards, useBudgets, useGoals, useCategories, useInvestments } from '../hooks/useFinanceQueries';
 import { useQueryClient } from '@tanstack/react-query';
 import { generateId, getAccountCumulativeBalance } from '../utils/helpers';
+import { LEGACY_TO_NEW_MAP } from '../constants';
 
 interface FinanceContextType {
   accounts: Account[];
@@ -135,108 +136,6 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
   // Migration Effect: Update legacy category icons to new 'cat_' library
   useEffect(() => {
     if (categories.length > 0 && user) {
-      const LEGACY_TO_NEW_MAP: Record<string, string> = {
-        // Food & Drink
-        'restaurant': 'cat_food',
-        'fastfood': 'cat_food',
-        'restaurant_menu': 'cat_food',
-        'lunch_dining': 'cat_food',
-        'dinner_dining': 'cat_food',
-        'local_dining': 'cat_food',
-        'local_cafe': 'cat_coffee',
-        'coffee': 'cat_coffee',
-        'local_bar': 'cat_leisure',
-        'liquor': 'cat_leisure',
-
-        // Transport
-        'directions_car': 'cat_car',
-        'commute': 'cat_car',
-        'directions_bus': 'cat_car',
-        'train': 'cat_car',
-        'subway': 'cat_car',
-        'local_taxi': 'cat_car',
-        'directions_bike': 'cat_leisure',
-
-        // Health
-        'local_hospital': 'cat_health',
-        'health_and_safety': 'cat_health',
-        'medical_services': 'cat_health',
-        'healing': 'cat_health',
-        'medication': 'cat_health',
-        'local_pharmacy': 'cat_health',
-
-        // Education
-        'school': 'cat_education',
-        'menu_book': 'cat_books', // or cat_education
-        'auto_stories': 'cat_education',
-        'import_contacts': 'cat_education',
-
-        // Leisure
-        'sports_esports': 'cat_leisure',
-        'local_activity': 'cat_leisure',
-        'sports_soccer': 'cat_leisure',
-        'pool': 'cat_leisure',
-        'fitness_center': 'cat_gym',
-        'gym': 'cat_gym',
-        'movie': 'cat_movie',
-        'theaters': 'cat_movie',
-        'music_note': 'cat_music',
-        'headphones': 'cat_music',
-        'music_off': 'cat_music',
-
-        // Home
-        'home': 'cat_home',
-        'house': 'cat_home',
-        'apartment': 'cat_home',
-        'cottage': 'cat_home',
-        'real_estate_agent': 'cat_home',
-
-        // Shopping
-        'checkroom': 'cat_clothing',
-        'shopping_cart': 'cat_shopping',
-        'shopping_bag': 'cat_shopping',
-        'local_mall': 'cat_shopping',
-        'store': 'cat_shopping',
-        'local_grocery_store': 'cat_grocery',
-        'shopping_basket': 'cat_grocery',
-        'grocery_store': 'cat_grocery',
-
-        // Travel
-        'flight': 'cat_travel',
-        'flight_takeoff': 'cat_travel',
-        'airport_shuttle': 'cat_travel',
-        'luggage': 'cat_travel',
-        'explore': 'cat_travel',
-
-        // Pets
-        'pets': 'cat_pets',
-
-        // Work
-        'work': 'cat_work',
-        'business_center': 'cat_work',
-        'badge': 'cat_work',
-
-        // Financial
-        'trending_up': 'cat_invest',
-        'show_chart': 'cat_invest',
-        'savings': 'cat_savings',
-        'account_balance': 'cat_savings',
-        'account_balance_wallet': 'cat_savings',
-        'attach_money': 'cat_salary',
-        'money': 'cat_salary',
-        'payments': 'cat_bill',
-        'receipt_long': 'cat_bill',
-        'credit_card': 'cat_bill',
-
-        // Others
-        'category': 'cat_others',
-        'more_horiz': 'cat_others',
-        'help': 'cat_others',
-        'info': 'cat_others',
-        'book': 'cat_books',
-        'library_books': 'cat_books'
-      };
-
       const categoriesToUpdate = categories.filter(c => LEGACY_TO_NEW_MAP[c.icon]);
 
       if (categoriesToUpdate.length > 0) {
@@ -309,31 +208,8 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
       return;
     }
 
-    // Update Account Balance logic
-    // ONLY if it is PAID and NOT a credit card transaction
-    if (newTransaction.accountId && newTransaction.isPaid && !newTransaction.cardId) {
-      // Fetch fresh balance
-      const { data: accData } = await supabase.from('accounts').select('balance').eq('id', newTransaction.accountId).single();
-
-      if (accData) {
-        let newBalance = accData.balance;
-        if (newTransaction.type === TransactionType.EXPENSE) {
-          newBalance -= newTransaction.amount;
-        } else if (newTransaction.type === TransactionType.INCOME) {
-          newBalance += newTransaction.amount;
-        }
-        await supabase.from('accounts').update({ balance: newBalance }).eq('id', newTransaction.accountId);
-      }
-    }
-
-    // Update Card Invoice
-    if (newTransaction.cardId && newTransaction.type === TransactionType.EXPENSE) {
-      const card = cards.find(c => c.id === newTransaction.cardId);
-      if (card) {
-        const newInvoice = card.currentInvoice + newTransaction.amount;
-        await supabase.from('cards').update({ current_invoice: newInvoice }).eq('id', newTransaction.cardId);
-      }
-    }
+    // Note: Account balances and Card invoices are now handled by database triggers.
+    invalidateAll();
 
     invalidateAll();
   };
@@ -344,23 +220,7 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
     const oldTransaction = transactions.find(t => t.id === id);
     if (!oldTransaction) return;
 
-    // 1. Reverter o impacto da transação antiga no saldo
-    // 1. Reverter o impacto da transação antiga no saldo
-    // SOMENTE se ela estava PAGA e NÃO era cartão de crédito
-    if (oldTransaction.accountId && oldTransaction.isPaid && !oldTransaction.cardId) {
-      // Fetch fresh balance
-      const { data: accData } = await supabase.from('accounts').select('balance').eq('id', oldTransaction.accountId).single();
-
-      if (accData) {
-        let reversedBalance = accData.balance;
-        if (oldTransaction.type === TransactionType.EXPENSE) {
-          reversedBalance += oldTransaction.amount;
-        } else if (oldTransaction.type === TransactionType.INCOME) {
-          reversedBalance -= oldTransaction.amount;
-        }
-        await supabase.from('accounts').update({ balance: reversedBalance }).eq('id', oldTransaction.accountId);
-      }
-    }
+    // Balance reversal logic moved to DB triggers.
 
     // 2. Atualizar a transação no banco
     const dbData: any = {};
@@ -380,24 +240,7 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
       return;
     }
 
-    // 3. Aplicar o impacto da nova transação (ou dados atualizados) no saldo
-    // Precisamos mesclar os dados antigos com os novos para ter o objeto completo
-    const newTransaction = { ...oldTransaction, ...data };
-
-    if (newTransaction.accountId && newTransaction.isPaid && !newTransaction.cardId) {
-      // Recarregar a conta para pegar o saldo atualizado (após a reversão)
-      const { data: accData } = await supabase.from('accounts').select('balance').eq('id', newTransaction.accountId).single();
-
-      if (accData) {
-        let newBalance = accData.balance;
-        if (newTransaction.type === TransactionType.EXPENSE) {
-          newBalance -= newTransaction.amount;
-        } else if (newTransaction.type === TransactionType.INCOME) {
-          newBalance += newTransaction.amount;
-        }
-        await supabase.from('accounts').update({ balance: newBalance }).eq('id', newTransaction.accountId);
-      }
-    }
+    // Balance impact handled by DB triggers.
 
     invalidateAll();
   };
@@ -410,21 +253,7 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
     if (t) {
       const { error } = await supabase.from('transactions').delete().eq('id', id);
       if (!error) {
-        if (t.account_id && t.is_paid && !t.card_id) {
-          // Fetch fresh balance
-          const { data: accData } = await supabase.from('accounts').select('balance').eq('id', t.account_id).single();
-
-          if (accData) {
-            const newBalance = t.type === 'INCOME' ? accData.balance - t.amount : accData.balance + t.amount;
-            await supabase.from('accounts').update({ balance: newBalance }).eq('id', t.account_id);
-          }
-        }
-        if (t.card_id && t.type === 'EXPENSE') {
-          const card = cards.find(c => c.id === t.card_id);
-          if (card) {
-            await supabase.from('cards').update({ current_invoice: card.currentInvoice - t.amount }).eq('id', t.card_id);
-          }
-        }
+        // Note: Logic moved to DB triggers.
         invalidateAll();
       }
     }
@@ -488,7 +317,15 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
       color: newAccount.color,
       logo_text: newAccount.bankName.substring(0, 2).toUpperCase(),
       account_number: newAccount.accountNumber,
-      icon: newAccount.icon
+      icon: newAccount.icon,
+      category: newAccount.category,
+      is_default_for_debit: newAccount.isDefaultForDebit,
+      show_in_summary: newAccount.showInSummary,
+      ignore_in_total: newAccount.ignoreInTotal,
+      overdraft_limit: newAccount.overdraftLimit,
+      overdraft_interest_rate: newAccount.overdraftInterestRate,
+      overdraft_used: newAccount.overdraftUsed,
+      notes: newAccount.notes
     };
     const { data: createdAccount, error } = await supabase.from('accounts').insert(dbAccount).select().single();
 
@@ -521,9 +358,10 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
 
       // Se o saldo foi alterado manualmente, precisamos criar uma transação de ajuste
       // porque o sistema calcula o saldo com base nas transações (triggers no BD)
+      const existingAccount = accounts.find(a => a.id === id);
       const currentComputedBalance = getAccountCumulativeBalance(
         transactions,
-        id,
+        existingAccount || { id, balance: 0 },
         new Date().getFullYear(),
         new Date().getMonth()
       );
@@ -547,6 +385,14 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
     if (data.accountNumber !== undefined) dbData.account_number = data.accountNumber;
     if (data.icon !== undefined) dbData.icon = data.icon;
     if (data.defaultCardId !== undefined) dbData.default_card_id = data.defaultCardId;
+    if (data.category !== undefined) dbData.category = data.category;
+    if (data.isDefaultForDebit !== undefined) dbData.is_default_for_debit = data.isDefaultForDebit;
+    if (data.showInSummary !== undefined) dbData.show_in_summary = data.showInSummary;
+    if (data.ignoreInTotal !== undefined) dbData.ignore_in_total = data.ignoreInTotal;
+    if (data.overdraftLimit !== undefined) dbData.overdraft_limit = data.overdraftLimit;
+    if (data.overdraftInterestRate !== undefined) dbData.overdraft_interest_rate = data.overdraftInterestRate;
+    if (data.overdraftUsed !== undefined) dbData.overdraft_used = data.overdraftUsed;
+    if (data.notes !== undefined) dbData.notes = data.notes;
 
     const { error } = await supabase.from('accounts').update(dbData).eq('id', id);
     if (!error) invalidateAll();
@@ -961,15 +807,15 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
       const { data: allTransactions, error: transError } = await supabase
         .from('transactions')
         .select('*')
-        .eq('user_id', user.id)
-        .eq('is_paid', true);
+        .eq('user_id', user.id);
 
       if (transError) throw transError;
       if (!allTransactions) return;
 
+      // 1. Recalculate Account Balances (Only paid transactions)
       for (const acc of allAccounts) {
         let calculatedBalance = 0;
-        const accTrans = allTransactions.filter((t: any) => t.account_id === acc.id && !t.card_id);
+        const accTrans = allTransactions.filter((t: any) => t.account_id === acc.id && !t.card_id && t.is_paid);
 
         accTrans.forEach((t: any) => {
           if (t.type === 'INCOME') {
@@ -980,6 +826,34 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
         });
 
         await supabase.from('accounts').update({ balance: calculatedBalance }).eq('id', acc.id);
+      }
+
+      // 2. Recalculate Card Invoices (Unpaid transactions linked to card)
+      const { data: allCards, error: cardError } = await supabase
+        .from('cards')
+        .select('*')
+        .eq('user_id', user.id);
+
+      if (!cardError && allCards) {
+        for (const card of allCards) {
+          let invoiceTotal = 0;
+          const cardTrans = allTransactions.filter((t: any) => t.card_id === card.id && !t.is_paid);
+
+          cardTrans.forEach((t: any) => {
+            // For cards, usually EXPENSE adds to invoice, INCOME (refunds) subtracts
+            if (t.type === 'EXPENSE') {
+              invoiceTotal += Number(t.amount);
+            } else if (t.type === 'INCOME') {
+              invoiceTotal -= Number(t.amount);
+            }
+          });
+
+          // Ensure we don't have negative invoice unless it's a credit? Usually 0 min.
+          // invoiceTotal = Math.max(0, invoiceTotal); 
+
+          // Correct column name is snake_case: current_invoice
+          await supabase.from('cards').update({ current_invoice: invoiceTotal }).eq('id', card.id);
+        }
       }
 
       await invalidateAll();

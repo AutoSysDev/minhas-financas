@@ -13,12 +13,11 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { formatCurrency, formatDate } from '../utils/helpers';
 import { useToast } from '../context/ToastContext';
 import { TransactionListSkeleton } from '../components/TransactionListSkeleton';
-import { FiscalManager } from '../components/FiscalManager';
 import { useTheme } from '../context/ThemeContext';
 import { MonthYearPicker } from '../components/MonthYearPicker';
 
 const Transactions: React.FC = () => {
-  const { cards, accounts, transactions: allTransactions, deleteTransactions } = useFinance();
+  const { cards, accounts, categories, transactions: allTransactions, deleteTransactions, updateTransaction } = useFinance();
   const { theme } = useTheme();
 
   const [searchParams] = useSearchParams();
@@ -87,8 +86,11 @@ const Transactions: React.FC = () => {
   const [filterType, setFilterType] = useState<'all' | 'income' | 'expense'>('all');
   const [sortBy, setSortBy] = useState<'date-desc' | 'date-asc' | 'amount-desc' | 'amount-asc'>('date-desc');
   const [selectedCategory, setSelectedCategory] = useState('Todas');
+  const [selectedAccount, setSelectedAccount] = useState('Todas');
+  const [paidFilter, setPaidFilter] = useState<'all' | 'paid' | 'pending'>('all');
   const [dateRange, setDateRange] = useState<{ start: string; end: string }>({ start: '', end: '' });
   const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   // 1. Calcular Datas do Período
   const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).toISOString().split('T')[0];
@@ -103,6 +105,8 @@ const Transactions: React.FC = () => {
     endDate: effectiveEndDate,
     type: filterType === 'all' ? undefined : filterType,
     category: selectedCategory,
+    account: selectedAccount,
+    paid: paidFilter,
     searchTerm: searchTerm,
     sortBy: sortBy
   };
@@ -130,8 +134,9 @@ const Transactions: React.FC = () => {
   const updateTransactionMutation = useUpdateTransaction();
   const deleteTransactionMutation = useDeleteTransaction();
 
-  // Scroll Infinito Observer
-  const observerTarget = useRef(null);
+  // Scroll Infinito Observer (refs separados para desktop e mobile)
+  const observerDesktopTarget = useRef<HTMLTableRowElement | null>(null);
+  const observerMobileTarget = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -143,14 +148,16 @@ const Transactions: React.FC = () => {
       { threshold: 0.1 }
     );
 
-    if (observerTarget.current) {
-      observer.observe(observerTarget.current);
-    }
+    const desktopEl = observerDesktopTarget.current;
+    const mobileEl = observerMobileTarget.current;
+    if (desktopEl) observer.observe(desktopEl);
+    if (mobileEl) observer.observe(mobileEl);
 
     return () => {
-      if (observerTarget.current) observer.unobserve(observerTarget.current);
+      if (desktopEl) observer.unobserve(desktopEl);
+      if (mobileEl) observer.unobserve(mobileEl);
     };
-  }, [observerTarget, hasNextPage, isFetchingNextPage, fetchNextPage]);
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   useEffect(() => {
     if (searchParams.get('action') === 'new') {
@@ -205,12 +212,12 @@ const Transactions: React.FC = () => {
 
     if (!targetTransaction) return;
 
+    setTransactionToDelete(targetTransaction);
+
     const recurrence = extractRecurrenceData(targetTransaction.description);
 
     if (recurrence) {
       // Is Recurring
-      setTransactionToDelete(targetTransaction);
-
       // Find future transactions
       // We look for transactions with same base description, same total count, same type, and sequence >= current
       const future = allTransactions.filter(t => {
@@ -223,20 +230,10 @@ const Transactions: React.FC = () => {
       });
 
       setRecurringGroup(future);
-      setDeleteModalOpen(true);
     } else {
-      if (window.confirm("Deseja realmente excluir esta transação?")) {
-        deleteTransactionMutation.mutate(id, {
-          onSuccess: () => {
-            toast.success("Transação excluída com sucesso!");
-            setViewingTransaction(null);
-          },
-          onError: (error) => {
-            toast.error("Erro ao excluir transação: " + error.message);
-          }
-        });
-      }
+      setRecurringGroup([]);
     }
+    setDeleteModalOpen(true);
   };
 
   const handleEdit = (e: React.MouseEvent | React.TouchEvent, id: string) => {
@@ -255,12 +252,11 @@ const Transactions: React.FC = () => {
     e.stopPropagation();
     const transactionToDuplicate = transactions.find(t => t.id === id);
     if (transactionToDuplicate) {
-      // Remove ID to treat as new
+      // Remove ID to treat as new — mantém a data original para não confundir o mês
       const { id, ...rest } = transactionToDuplicate;
       setOcrData({
         ...rest,
         description: `${rest.description} (Cópia)`,
-        date: new Date().toISOString().split('T')[0] // Default to today
       });
       setIsNewModalOpen(true);
     }
@@ -302,7 +298,12 @@ const Transactions: React.FC = () => {
     setIsProcessing(true);
     try {
       const formData = new FormData();
-      formData.append('apikey', 'K82571370988957'); // Chave fornecida
+      const ocrKey = (import.meta as any)?.env?.VITE_OCR_API_KEY || '';
+      if (!ocrKey) {
+        toast.error('Leitura de comprovante desativada: configure VITE_OCR_API_KEY.');
+        return;
+      }
+      formData.append('apikey', ocrKey);
       formData.append('file', file);
       formData.append('language', 'por');
       formData.append('isOverlayRequired', 'true'); // Overlay ajuda a manter a ordem das linhas
@@ -495,7 +496,18 @@ const Transactions: React.FC = () => {
   };
 
   // Versão legada de filtragem local removida em favor da filtragem no servidor
-  const filteredTransactions = transactions;
+  const filteredTransactions = transactions.filter(t => {
+    if (selectedAccount !== 'Todas') {
+      if (selectedAccount.startsWith('account:')) {
+        if (t.accountId !== selectedAccount.replace('account:', '')) return false;
+      } else if (selectedAccount.startsWith('card:')) {
+        if ((t as any).cardId !== selectedAccount.replace('card:', '')) return false;
+      }
+    }
+    if (paidFilter === 'paid' && !t.isPaid) return false;
+    if (paidFilter === 'pending' && t.isPaid) return false;
+    return true;
+  });
 
   return (
     <div className="flex flex-col gap-6 md:gap-8 animate-fade-in relative pb-20 md:pb-0">
@@ -631,7 +643,7 @@ const Transactions: React.FC = () => {
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Buscar por descrição..."
+              placeholder="Buscar por descrição, categoria, valor..."
               className={`w-full pl-10 pr-4 py-2.5 rounded-lg border transition-all outline-none text-sm ${theme === 'light'
                 ? 'bg-white border-gray-200 text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500'
                 : 'bg-white/[0.05] border-white/[0.1] text-white placeholder-gray-500 focus:ring-2 focus:ring-teal-500/50 focus:border-transparent'
@@ -659,10 +671,34 @@ const Transactions: React.FC = () => {
             <Dropdown
               options={[
                 { label: 'Todas Categorias', value: 'Todas' },
-                ...Array.from(new Set(transactions.map(t => t.category))).map(c => ({ label: c, value: c }))
+                ...categories.map(c => ({ label: c.name, value: c.name }))
               ]}
               value={selectedCategory}
               onChange={setSelectedCategory}
+              className="w-full"
+            />
+          </div>
+          <div className="w-full sm:w-auto min-w-[150px]">
+            <Dropdown
+              options={[
+                { label: 'Todas Origens', value: 'Todas' },
+                ...accounts.map(a => ({ label: `Conta: ${a.name}`, value: `account:${a.id}` })),
+                ...cards.map(c => ({ label: `Cartão: ${c.name}`, value: `card:${c.id}` })),
+              ]}
+              value={selectedAccount}
+              onChange={setSelectedAccount}
+              className="w-full"
+            />
+          </div>
+          <div className="w-full sm:w-auto min-w-[130px]">
+            <Dropdown
+              options={[
+                { label: 'Pago + Pendente', value: 'all' },
+                { label: 'Somente pagas', value: 'paid' },
+                { label: 'Somente pendentes', value: 'pending' },
+              ]}
+              value={paidFilter}
+              onChange={(v) => setPaidFilter(v as any)}
               className="w-full"
             />
           </div>
@@ -696,15 +732,59 @@ const Transactions: React.FC = () => {
                 }`}
             />
           </div>
-          {(dateRange.start || dateRange.end || selectedCategory !== 'Todas') && (
+          {(dateRange.start || dateRange.end || selectedCategory !== 'Todas' || selectedAccount !== 'Todas' || paidFilter !== 'all' || searchTerm || filterType !== 'all') && (
             <button
-              onClick={() => { setDateRange({ start: '', end: '' }); setSelectedCategory('Todas'); }}
+              onClick={() => { setDateRange({ start: '', end: '' }); setSelectedCategory('Todas'); setSelectedAccount('Todas'); setPaidFilter('all'); setSearchTerm(''); setFilterType('all'); setSelectedIds([]); }}
               className={`text-xs underline transition-colors ${theme === 'light' ? 'text-teal-600 hover:text-teal-700' : 'text-teal-400 hover:text-teal-300'}`}
             >
               Limpar Filtros
             </button>
           )}
         </div>
+
+        {selectedIds.length > 0 && (
+          <div className={`flex flex-wrap items-center gap-2 p-3 rounded-xl border ${theme === 'light' ? 'bg-teal-50 border-teal-200' : 'bg-teal-500/10 border-teal-500/30'}`}>
+            <span className={`text-xs font-bold ${theme === 'light' ? 'text-teal-800' : 'text-teal-200'}`}>{selectedIds.length} selecionada(s)</span>
+            <button
+              onClick={async () => {
+                try {
+                  await Promise.all(selectedIds.map(id => updateTransaction(id, { isPaid: true })));
+                  toast.success(`${selectedIds.length} marcada(s) como paga(s)!`);
+                  setSelectedIds([]);
+                } catch (e: any) { toast.error('Erro: ' + e.message); }
+              }}
+              className="px-3 py-1.5 rounded-lg bg-green-500 text-white text-xs font-bold hover:bg-green-600"
+            >
+              Marcar pagas
+            </button>
+            <button
+              onClick={async () => {
+                try {
+                  await Promise.all(selectedIds.map(id => updateTransaction(id, { isPaid: false })));
+                  toast.success(`${selectedIds.length} marcada(s) como pendente(s)!`);
+                  setSelectedIds([]);
+                } catch (e: any) { toast.error('Erro: ' + e.message); }
+              }}
+              className={`px-3 py-1.5 rounded-lg border text-xs font-bold ${theme === 'light' ? 'bg-white border-gray-200 text-slate-700' : 'bg-white/10 border-white/10 text-white'}`}
+            >
+              Pendentes
+            </button>
+            <button
+              onClick={async () => {
+                if (!window.confirm(`Excluir ${selectedIds.length} transações?`)) return;
+                try {
+                  await deleteTransactions(selectedIds);
+                  toast.success('Transações excluídas!');
+                  setSelectedIds([]);
+                } catch (e: any) { toast.error('Erro: ' + e.message); }
+              }}
+              className="px-3 py-1.5 rounded-lg bg-red-500 text-white text-xs font-bold hover:bg-red-600"
+            >
+              Excluir
+            </button>
+            <button onClick={() => setSelectedIds([])} className={`text-xs underline ${theme === 'light' ? 'text-slate-500' : 'text-gray-300'}`}>Limpar seleção</button>
+          </div>
+        )}
       </div>
 
       {/* Lista de Transações */}
@@ -720,17 +800,30 @@ const Transactions: React.FC = () => {
           <>
             {/* Versão Desktop */}
             <div className="hidden md:block overflow-x-auto">
+              <div className="flex items-center justify-between px-6 py-3">
+                <button
+                  onClick={() => {
+                    if (selectedIds.length === filteredTransactions.length && filteredTransactions.length > 0) setSelectedIds([]);
+                    else setSelectedIds(filteredTransactions.map(t => t.id));
+                  }}
+                  className={`text-xs font-bold ${theme === 'light' ? 'text-teal-700' : 'text-teal-300'}`}
+                >
+                  {selectedIds.length === filteredTransactions.length && filteredTransactions.length > 0 ? 'Desmarcar visíveis' : 'Selecionar visíveis'}
+                </button>
+                <span className={`text-xs ${theme === 'light' ? 'text-slate-400' : 'text-gray-500'}`}>{filteredTransactions.length} itens</span>
+              </div>
               <table className="w-full text-left text-sm">
                 <thead className={`font-medium border-b transition-colors ${theme === 'light'
                   ? 'bg-gray-50 text-slate-500 border-gray-100'
                   : 'bg-white/[0.05] text-gray-400 border-white/[0.05]'
                   }`}>
                   <tr>
-                    <th className="px-6 py-3">Descrição</th>
+                    <th className="pl-4 pr-1 py-3 w-8"></th>
+                    <th className="px-2 py-3">Descrição</th>
                     <th className="px-6 py-3">Categoria</th>
                     <th className="px-6 py-3">Data</th>
                     <th className="px-6 py-3 text-right">Valor</th>
-                    <th className="px-6 py-3 text-center">Status</th>
+                    <th className="px-6 py-3 text-center">Ações</th>
                   </tr>
                 </thead>
                 <tbody className={`divide-y transition-colors ${theme === 'light' ? 'divide-gray-50' : 'divide-white/[0.05]'}`}>
@@ -739,20 +832,26 @@ const Transactions: React.FC = () => {
                       key={t.id}
                       transaction={t}
                       onClick={() => handleTransactionClick(t)}
+                      onEdit={(e) => handleEdit(e, t.id)}
+                      onDuplicate={(e) => handleDuplicate(e, t.id)}
+                      onDelete={(e) => handleDelete(e, t.id)}
+                      selected={selectedIds.includes(t.id)}
+                      onToggleSelect={() => setSelectedIds(prev => prev.includes(t.id) ? prev.filter(id => id !== t.id) : [...prev, t.id])}
                     />
                   )) : (
                     <tr>
-                      <td colSpan={5} className={`px-6 py-12 text-center transition-colors ${theme === 'light' ? 'text-slate-400' : 'text-gray-500'}`}>
+                      <td colSpan={6} className={`px-6 py-12 text-center transition-colors ${theme === 'light' ? 'text-slate-400' : 'text-gray-500'}`}>
                         <div className="flex flex-col items-center justify-center gap-2">
                           <Icon name="event_busy" className="text-3xl opacity-50" />
                           <p>Nenhuma transação encontrada.</p>
+                          <button onClick={() => handleOpenNewModal()} className="mt-2 px-4 py-2 rounded-lg bg-teal-500 text-white text-xs font-bold">Criar transação</button>
                         </div>
                       </td>
                     </tr>
                   )}
                   {/* Elemento para scroll infinito */}
-                  <tr ref={observerTarget} className="h-4">
-                    <td colSpan={5}>
+                  <tr ref={observerDesktopTarget} className="h-4">
+                    <td colSpan={6}>
                       {isFetchingNextPage && (
                         <div className="flex justify-center p-4">
                           <div className="size-6 border-2 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
@@ -782,7 +881,7 @@ const Transactions: React.FC = () => {
                 </div>
               )}
               {/* Elemento para scroll infinito */}
-              <div ref={observerTarget} className="h-4">
+              <div ref={observerMobileTarget} className="h-4">
                 {isFetchingNextPage && (
                   <div className="flex justify-center p-4">
                     <div className="size-6 border-2 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
@@ -833,55 +932,82 @@ const Transactions: React.FC = () => {
         <Modal
           isOpen={deleteModalOpen}
           onClose={() => setDeleteModalOpen(false)}
-          title="Excluir Transação Recorrente"
+          title={recurringGroup.length > 0 ? "Excluir Transação Recorrente" : "Excluir Transação"}
         >
           <div className="space-y-4">
-            <p className={`text-sm ${theme === 'light' ? 'text-slate-600' : 'text-gray-400'}`}>
-              Esta é uma transação recorrente. Como deseja prosseguir com a exclusão?
-            </p>
-            <div className="grid grid-cols-1 gap-3">
-              <button
-                onClick={() => executeRecurringDelete('single')}
-                className={`flex items-center gap-3 p-4 rounded-xl border transition-all hover:scale-[1.02] active:scale-[0.98] ${theme === 'light'
-                  ? 'bg-white border-gray-200 hover:bg-gray-50 text-slate-900'
-                  : 'bg-white/5 border-white/10 hover:bg-white/10 text-white'
-                  }`}
-              >
-                <div className="size-10 rounded-full bg-blue-500/20 text-blue-500 flex items-center justify-center">
-                  <Icon name="event" />
-                </div>
-                <div className="text-left">
-                  <p className="font-bold">Apagar apenas esta</p>
-                  <p className="text-xs opacity-60">Exclui somente a transação selecionada.</p>
-                </div>
-              </button>
+            {recurringGroup.length > 0 ? (
+              <>
+                <p className={`text-sm ${theme === 'light' ? 'text-slate-600' : 'text-gray-400'}`}>
+                  Esta é uma transação recorrente. Como deseja prosseguir com a exclusão?
+                </p>
+                <div className="grid grid-cols-1 gap-3">
+                  <button
+                    onClick={() => executeRecurringDelete('single')}
+                    className={`flex items-center gap-3 p-4 rounded-xl border transition-all hover:scale-[1.02] active:scale-[0.98] ${theme === 'light'
+                      ? 'bg-white border-gray-200 hover:bg-gray-50 text-slate-900'
+                      : 'bg-white/5 border-white/10 hover:bg-white/10 text-white'
+                      }`}
+                  >
+                    <div className="size-10 rounded-full bg-blue-500/20 text-blue-500 flex items-center justify-center">
+                      <Icon name="event" />
+                    </div>
+                    <div className="text-left">
+                      <p className="font-bold">Apagar apenas esta</p>
+                      <p className="text-xs opacity-60">Exclui somente a transação selecionada.</p>
+                    </div>
+                  </button>
 
-              <button
-                onClick={() => executeRecurringDelete('future')}
-                className={`flex items-center gap-3 p-4 rounded-xl border transition-all hover:scale-[1.02] active:scale-[0.98] ${theme === 'light'
-                  ? 'bg-red-50 border-red-100 hover:bg-red-100 text-red-700'
-                  : 'bg-red-500/10 border-red-500/20 hover:bg-red-500/20 text-red-400'
-                  }`}
-              >
-                <div className="size-10 rounded-full bg-red-500/20 text-red-500 flex items-center justify-center">
-                  <Icon name="event_repeat" />
+                  <button
+                    onClick={() => executeRecurringDelete('future')}
+                    className={`flex items-center gap-3 p-4 rounded-xl border transition-all hover:scale-[1.02] active:scale-[0.98] ${theme === 'light'
+                      ? 'bg-red-50 border-red-100 hover:bg-red-100 text-red-700'
+                      : 'bg-red-500/10 border-red-500/20 hover:bg-red-500/20 text-red-400'
+                      }`}
+                  >
+                    <div className="size-10 rounded-full bg-red-500/20 text-red-500 flex items-center justify-center">
+                      <Icon name="event_repeat" />
+                    </div>
+                    <div className="text-left">
+                      <p className="font-bold">Apagar esta e as próximas</p>
+                      <p className="text-xs opacity-60">Exclui esta e todas as {recurringGroup.length} transações futuras da série.</p>
+                    </div>
+                  </button>
                 </div>
-                <div className="text-left">
-                  <p className="font-bold">Apagar esta e as próximas</p>
-                  <p className="text-xs opacity-60">Exclui esta e todas as {recurringGroup.length} transações futuras da série.</p>
-                </div>
-              </button>
-            </div>
 
-            <div className="flex justify-end mt-2">
-              <button
-                onClick={() => setDeleteModalOpen(false)}
-                className={`px-4 py-2 text-sm font-medium transition-colors ${theme === 'light' ? 'text-slate-500 hover:text-slate-700' : 'text-gray-400 hover:text-white'
-                  }`}
-              >
-                Cancelar
-              </button>
-            </div>
+                <div className="flex justify-end mt-2">
+                  <button
+                    onClick={() => setDeleteModalOpen(false)}
+                    className={`px-4 py-2 text-sm font-medium transition-colors ${theme === 'light' ? 'text-slate-500 hover:text-slate-700' : 'text-gray-400 hover:text-white'
+                      }`}
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className={`text-sm ${theme === 'light' ? 'text-slate-600' : 'text-gray-400'}`}>
+                  Tem certeza que deseja excluir esta transação? Esta ação não pode ser desfeita.
+                </p>
+                <div className="flex justify-end gap-3 pt-4">
+                  <button
+                    onClick={() => setDeleteModalOpen(false)}
+                    className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${theme === 'light'
+                      ? 'bg-gray-100 text-slate-600 hover:bg-gray-200'
+                      : 'bg-white/5 text-gray-300 hover:bg-white/10'
+                      }`}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={() => executeRecurringDelete('single')}
+                    className="px-4 py-2 text-sm font-medium rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors shadow-lg shadow-red-500/20"
+                  >
+                    Excluir
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </Modal>
       )}
@@ -902,9 +1028,12 @@ const DetailsTransactionModal: React.FC<{
   onDuplicate?: (id: string) => void;
 }> = ({ transaction, onClose, onDelete, onDuplicate }) => {
   const { theme } = useTheme();
+  const { categories } = useFinance();
   const isExpense = transaction.type === TransactionType.EXPENSE;
   const colorClass = isExpense ? 'text-red-400' : 'text-green-400';
   const bgClass = isExpense ? 'bg-red-500/20' : 'bg-green-500/20';
+
+  const categoryIcon = categories.find(c => c.name === transaction.category)?.icon || 'category';
 
   const handleDelete = () => {
     onDelete(transaction.id);
@@ -990,18 +1119,13 @@ const DetailsTransactionModal: React.FC<{
 
       {/* Details */}
       <div className={`p-5 space-y-5 transition-colors ${theme === 'light' ? 'bg-white' : ''}`}>
-        <DetailRow icon="category" label="Categoria" value={transaction.category} />
+        <DetailRow icon={categoryIcon} label="Categoria" value={transaction.category} />
         <DetailRow icon="calendar_today" label="Data" value={formatDate(transaction.date)} />
-        <DetailRow
-          icon={transaction.accountId ? "account_balance" : "credit_card"}
-          label="Origem"
-          value={transaction.accountId ? "Conta Corrente" : "Cartão de Crédito"}
-        />
+        <DetailRow icon="description" label="Descrição" value={transaction.description} />
+        <OriginRow transaction={transaction} />
         {transaction.id && (
           <DetailRow icon="fingerprint" label="ID da Transação" value={transaction.id.substring(0, 8)} />
         )}
-
-        <FiscalManager transaction={transaction} />
       </div>
 
       {/* Action Buttons */}
@@ -1052,6 +1176,15 @@ const DetailRow = ({ icon, label, value }: { icon: string, label: string, value:
       </div>
     </div>
   );
+};
+
+const OriginRow: React.FC<{ transaction: Transaction }> = ({ transaction }) => {
+  const { accounts, cards } = useFinance();
+  const accountName = accounts.find(a => a.id === transaction.accountId)?.name;
+  const cardName = cards.find(c => c.id === transaction.cardId)?.name;
+  const value = accountName ? `Conta • ${accountName}` : cardName ? `Cartão • ${cardName}` : transaction.accountId ? 'Conta' : 'Cartão de Crédito';
+  const icon = transaction.accountId ? 'account_balance' : 'credit_card';
+  return <DetailRow icon={icon} label="Origem" value={value} />;
 };
 
 

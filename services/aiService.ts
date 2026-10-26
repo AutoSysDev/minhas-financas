@@ -49,19 +49,19 @@ export async function getAIAnalysis(
         'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        // Atualizado para o modelo GPT-5 Nano
-        model: 'gpt-5-nano', 
+        // Atualizado para um modelo válido da OpenAI (GPT-4o mini)
+        model: 'gpt-4o-mini',
         messages: [
-          { 
-            role: 'system', 
-            content: 'Você é um consultor financeiro sênior especializado em economia doméstica.' 
+          {
+            role: 'system',
+            content: 'Você é um consultor financeiro sênior especializado em economia doméstica.'
           },
           { role: 'user', content: prompt }
         ],
-        // Temperatura 0.3 é melhor para análises financeiras (evita "alucinações" nos números)
-        temperature: 0.3,
+        // Temperatura 1 (padrão)
+        temperature: 1,
         // Opcional: define um limite para economizar ainda mais
-        max_tokens: 800 
+        max_completion_tokens: 800
       })
     });
 

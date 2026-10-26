@@ -16,6 +16,15 @@ export interface Account {
   accountNumber?: string;
   defaultCardId?: string;
   initialBalanceDate?: string;
+  // New fields
+  category?: string;
+  isDefaultForDebit?: boolean;
+  showInSummary?: boolean;
+  ignoreInTotal?: boolean;
+  overdraftLimit?: number;
+  overdraftInterestRate?: number;
+  overdraftUsed?: number;
+  notes?: string;
 }
 
 export interface Transaction {
@@ -27,6 +36,7 @@ export interface Transaction {
   category: string;
   cardId?: string;
   accountId?: string; // Link transaction to an account
+  destinationAccountId?: string; // For transfers
   isPaid: boolean;
   installments?: number; // Total de parcelas
   installmentNumber?: number; // Número da parcela atual (Ex: 1 de 10)
@@ -58,6 +68,7 @@ export interface Goal {
   icon: string;
   colorClass?: string; // e.g., "bg-primary", "bg-yellow-500"
   textClass?: string; // e.g., "text-primary", "text-yellow-600"
+  archived?: boolean;
 }
 
 export interface GoalTransaction {

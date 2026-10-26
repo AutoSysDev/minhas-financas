@@ -5,7 +5,8 @@ const config: CapacitorConfig = {
   appName: 'Monely Finance',
   webDir: 'dist',
   server: {
-    // url: 'https://monelyfinance1.vercel.app', // Comentado para teste local. Descomente para produção/live updates.
+    url: 'https://monelyfinance.vercel.app/', // Produção Vercel
+    // url: 'http://192.168.2.14:3000', // Configuração para Live Reload (Desenvolvimento)
     cleartext: true,
     androidScheme: 'https',
     allowNavigation: [
@@ -13,7 +14,8 @@ const config: CapacitorConfig = {
       'fonts.googleapis.com',
       'fonts.gstatic.com',
       'esm.sh',
-      'aistudiocdn.com'
+      'aistudiocdn.com',
+      'monelyfinance.vercel.app'
     ]
   }
 };

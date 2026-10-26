@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Icon } from '../components/Icon';
 import { PrivateValue } from '../components/PrivateValue';
@@ -6,30 +6,88 @@ import { Dropdown } from '../components/Dropdown';
 import { Modal } from '../components/Modal';
 import { useFinance } from '../context/FinanceContext';
 import { Link } from 'react-router-dom';
-import { formatCurrency, formatDate, getTransactionDate } from '../utils/helpers';
+import { formatCurrency, formatDate, getTransactionDate, calculateCurrentInvoiceAmount } from '../utils/helpers';
 import { Card, TransactionType } from '../types';
 import { useTheme } from '../context/ThemeContext';
+import { BANKS } from '../constants';
+
+import { ImportInvoiceModal } from '../components/ImportInvoiceModal';
+
+const BRAND_LABEL: Record<string, string> = {
+  mastercard: 'Mastercard',
+  visa: 'Visa',
+  amex: 'Amex',
+  elo: 'Elo',
+  other: 'Outra',
+};
 
 const Cards: React.FC = () => {
   const { theme } = useTheme();
-  const { cards, transactions, categories, addCard, updateCard, deleteCard } = useFinance();
+  const { cards, transactions, categories, accounts, addCard, updateCard, deleteCard } = useFinance();
   const [isNewCardModalOpen, setIsNewCardModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [editingCard, setEditingCard] = useState<Card | null>(null);
   const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 768);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsDesktop(window.innerWidth >= 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const toggleCard = (cardId: string) => {
     if (expandedCardId === cardId) {
       setExpandedCardId(null);
     } else {
       setExpandedCardId(cardId);
+      const idx = cards.findIndex(c => c.id === cardId);
+      if (idx >= 0) setActiveIndex(idx);
     }
   };
+
+  const goToCard = (index: number) => {
+    const total = cards.length;
+    if (total === 0) return;
+    const next = ((index % total) + total) % total;
+    setActiveIndex(next);
+    setExpandedCardId(cards[next].id);
+  };
+
+  // Totais consolidados — usa sempre o valor da fatura atual (mesmo cálculo do card)
+  const perCardInvoice = cards.map(card => calculateCurrentInvoiceAmount(card, transactions));
+  const totalLimit = cards.reduce((sum, c) => sum + Number(c.limit || 0), 0);
+  const totalUsed = perCardInvoice.reduce((sum, v) => sum + Number(v || 0), 0);
+  const totalAvailable = Math.max(totalLimit - totalUsed, 0);
 
   return (
     <div className="flex flex-col gap-6 animate-fade-in relative pb-20 md:pb-0 min-h-[80vh]">
       <div className="flex flex-wrap items-center justify-between gap-4 relative z-20">
         <h1 className={`text-2xl md:text-3xl font-black leading-tight tracking-[-0.033em] transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>Meus Cartões</h1>
         <div className="flex items-center gap-2 sm:gap-3">
+          <button
+            onClick={() => setIsImportModalOpen(true)}
+            className={`flex min-w-[40px] md:min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 text-sm font-medium leading-normal gap-2 transition-colors border ${theme === 'light'
+              ? 'bg-white border-gray-200 text-slate-700 hover:bg-gray-50'
+              : 'bg-white/[0.05] border-white/[0.1] text-white hover:bg-white/[0.1]'
+              }`}
+          >
+            <Icon name="upload_file" />
+            <span className="truncate hidden md:inline">Importar</span>
+          </button>
+          <Link
+            to="/invoice"
+            className={`flex min-w-[40px] md:min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 text-sm font-medium leading-normal gap-2 transition-colors border ${theme === 'light'
+              ? 'bg-white border-gray-200 text-slate-700 hover:bg-gray-50'
+              : 'bg-white/[0.05] border-white/[0.1] text-white hover:bg-white/[0.1]'
+              }`}
+          >
+            <Icon name="receipt_long" />
+            <span className="truncate hidden md:inline">Ver Faturas</span>
+          </Link>
           <button
             onClick={() => setIsNewCardModalOpen(true)}
             className="flex min-w-[40px] md:min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-teal-500 text-white text-sm font-medium leading-normal gap-2 hover:bg-teal-600 transition-colors shadow-[0_0_20px_-5px_rgba(45,212,191,0.3)]"
@@ -41,18 +99,68 @@ const Cards: React.FC = () => {
         </div>
       </div>
 
+      {cards.length > 0 && (
+        <div className={`grid grid-cols-3 gap-3 p-4 rounded-2xl border ${theme === 'light' ? 'bg-white border-gray-100' : 'bg-white/[0.02] border-white/[0.05]'}`}>
+          <div>
+            <p className={`text-[11px] font-bold uppercase tracking-wider ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Limite total</p>
+            <p className={`text-base font-black ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}><PrivateValue>{formatCurrency(totalLimit)}</PrivateValue></p>
+          </div>
+          <div>
+            <p className={`text-[11px] font-bold uppercase tracking-wider ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Usado</p>
+            <p className="text-base font-black text-amber-500"><PrivateValue>{formatCurrency(totalUsed)}</PrivateValue></p>
+          </div>
+          <div>
+            <p className={`text-[11px] font-bold uppercase tracking-wider ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Disponível</p>
+            <p className="text-base font-black text-teal-500"><PrivateValue>{formatCurrency(totalAvailable)}</PrivateValue></p>
+          </div>
+        </div>
+      )}
+
+      {!isDesktop && cards.length > 1 && (
+        <div className="flex items-center gap-2">
+          <button onClick={() => goToCard(activeIndex - 1)} className={`p-2 rounded-lg border ${theme === 'light' ? 'bg-white border-gray-200 text-slate-600' : 'bg-white/[0.05] border-white/[0.1] text-gray-300'}`} aria-label="Cartão anterior">
+            <Icon name="chevron_left" />
+          </button>
+          <div className="flex-1 flex gap-2 overflow-x-auto py-1">
+            {cards.map((c, i) => (
+              <button
+                key={c.id}
+                onClick={() => goToCard(i)}
+                className={`flex items-center gap-2 px-3 py-2 rounded-full border text-xs font-bold whitespace-nowrap transition-all ${expandedCardId === c.id || (!expandedCardId && i === activeIndex)
+                  ? 'bg-teal-500 text-white border-teal-500'
+                  : (theme === 'light' ? 'bg-white border-gray-200 text-slate-600' : 'bg-white/[0.05] border-white/[0.1] text-gray-300')}`}
+              >
+                <span className="size-2.5 rounded-full" style={{ backgroundColor: c.color }} />
+                {c.name} •• {c.lastDigits}
+              </button>
+            ))}
+          </div>
+          <button onClick={() => goToCard(activeIndex + 1)} className={`p-2 rounded-lg border ${theme === 'light' ? 'bg-white border-gray-200 text-slate-600' : 'bg-white/[0.05] border-white/[0.1] text-gray-300'}`} aria-label="Próximo cartão">
+            <Icon name="chevron_right" />
+          </button>
+        </div>
+      )}
+
       <div
-        className="relative w-full max-w-md mx-auto mt-8 perspective-1000"
-        style={{ height: Math.max(300, cards.length * 60 + 220) }}
+        className="relative w-full max-w-md mx-auto mt-2 perspective-1000 md:max-w-none md:perspective-none md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-6"
+        style={{ height: isDesktop ? 'auto' : (expandedCardId ? 'auto' : Math.max(340, 260 + Math.max(cards.length - 1, 0) * 60 + 20)) }}
       >
         <AnimatePresence>
           {cards.map((card, index) => {
             const isExpanded = expandedCardId === card.id;
             const isBlocked = card.status === 'blocked';
             const accentColor = card.color === '#000000' ? '#374151' : card.color;
-            const limitPercentage = Math.min((card.currentInvoice / card.limit) * 100, 100);
+            const currentInvoiceAmount = perCardInvoice[index] ?? calculateCurrentInvoiceAmount(card, transactions);
+
+            const limitPercentage = card.limit > 0 ? Math.min((currentInvoiceAmount / card.limit) * 100, 100) : 0;
+            const showAlert = limitPercentage >= 80;
 
             const isAnyExpanded = expandedCardId !== null;
+
+            // Find linked account and bank logo
+            const linkedAccount = accounts.find(a => a.id === card.linkedAccountId);
+            const bank = linkedAccount ? BANKS.find(b => b.name === linkedAccount.bankName) : null;
+            const bankLogo = bank?.logo;
 
             // Filter transactions for this card (current month)
             const currentMonth = new Date().getMonth();
@@ -66,19 +174,23 @@ const Cards: React.FC = () => {
             return (
               <motion.div
                 key={card.id}
-                layoutId={card.id}
+                layout
                 initial={false}
                 animate={{
-                  top: isExpanded ? 0 : (isAnyExpanded ? 1000 : index * 60),
-                  scale: isExpanded ? 1 : (isAnyExpanded ? 0.9 : 1 - index * 0.02),
-                  zIndex: isExpanded ? 50 : index,
-                  opacity: isAnyExpanded && !isExpanded ? 0 : 1
+                  y: isDesktop ? 0 : (isExpanded ? 0 : (isAnyExpanded ? 1000 : index * 60)),
+                  scale: isDesktop ? 1 : (isExpanded ? 1 : (isAnyExpanded ? 0.95 : 1 - index * 0.03)),
+                  zIndex: isExpanded ? 50 : (cards.length - index),
+                  opacity: isDesktop ? 1 : (isAnyExpanded && !isExpanded ? 0 : 1)
                 }}
-                transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                transition={{ type: 'spring', stiffness: 260, damping: 20 }}
                 onClick={() => toggleCard(card.id)}
+                role="button"
+                aria-expanded={isExpanded}
+                aria-label={`${card.name} final ${card.lastDigits}`}
                 className={`
-                  absolute w-full left-0 cursor-pointer rounded-2xl shadow-2xl overflow-hidden transition-all border
-                  ${isExpanded ? 'h-auto min-h-[300px]' : 'h-[220px] hover:brightness-110'}
+                  absolute w-full left-0 cursor-pointer rounded-2xl shadow-2xl overflow-hidden border
+                  md:relative md:w-full md:left-auto
+                  ${isExpanded ? 'h-auto min-h-[340px]' : 'h-[260px] hover:brightness-110'}
                   ${theme === 'light'
                     ? 'bg-white border-gray-100 shadow-slate-200/50'
                     : 'bg-[#1c1c1e] border-white/[0.05] shadow-black/40'
@@ -86,6 +198,7 @@ const Cards: React.FC = () => {
                 `}
                 style={{
                   transformOrigin: 'top center',
+                  top: 0
                 }}
               >
                 {/* Colored Strip */}
@@ -94,8 +207,12 @@ const Cards: React.FC = () => {
                 <div className={`p-6 flex flex-col h-full relative ${theme === 'light' ? 'bg-gradient-to-b from-gray-50 to-transparent' : 'bg-gradient-to-b from-white/[0.05] to-transparent'}`}>
                   {/* Header */}
                   <div className="flex items-start gap-4 mb-4">
-                    <div className={`size-12 rounded-xl flex items-center justify-center shadow-inner transition-colors ${theme === 'light' ? 'bg-gray-100' : 'bg-white/[0.1]'}`}>
-                      <Icon name="credit_card" className={theme === 'light' ? 'text-slate-600' : 'text-white/80'} />
+                    <div className={`size-12 rounded-xl flex items-center justify-center shadow-inner transition-colors overflow-hidden ${theme === 'light' ? 'bg-gray-100' : 'bg-white/[0.1]'}`}>
+                      {bankLogo ? (
+                        <img src={bankLogo} alt={bank?.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <Icon name="credit_card" className={theme === 'light' ? 'text-slate-600' : 'text-white/80'} />
+                      )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex justify-between items-start">
@@ -122,13 +239,32 @@ const Cards: React.FC = () => {
 
                   {/* Content - Only fully visible when expanded or top of stack (conceptually) */}
                   <div className={`mt-auto space-y-4 transition-opacity duration-300 ${isExpanded ? 'opacity-100' : 'opacity-80'}`}>
-                    <div>
-                      <p className={`text-xs font-medium mb-1 uppercase tracking-wider transition-colors ${theme === 'light' ? 'text-slate-400' : 'text-gray-400'}`}>Fatura Atual</p>
-                      <div className="flex items-baseline justify-between">
-                        <p className={`text-2xl font-bold transition-colors ${isBlocked ? 'text-gray-500' : (theme === 'light' ? 'text-slate-900' : 'text-white')}`}>
-                          <PrivateValue>{formatCurrency(card.currentInvoice)}</PrivateValue>
-                        </p>
+                    <div className="flex justify-between items-end">
+                      <div>
+                        <div className="flex items-center gap-3 mb-1">
+                          <p className={`text-xs font-bold uppercase tracking-wider transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-300'}`}>Fatura Atual</p>
+                          <Link
+                            to={`/invoice?cardId=${card.id}`}
+                            className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-colors hover:underline ${theme === 'light' ? 'text-teal-600' : 'text-teal-400'}`}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Icon name="receipt_long" className="text-[12px]" />
+                            Ver Fatura
+                          </Link>
+                        </div>
+                        <div className="flex items-baseline justify-between">
+                          <p className={`text-2xl font-bold transition-colors ${isBlocked ? 'text-gray-500' : (theme === 'light' ? 'text-slate-900' : 'text-white')}`}>
+                            <PrivateValue>{formatCurrency(currentInvoiceAmount)}</PrivateValue>
+                          </p>
+                        </div>
                       </div>
+                      {card.brand === 'mastercard' ? (
+                        <img src="/card-assets/logo-master.svg" alt="Mastercard" className="h-8 mb-1" />
+                      ) : (
+                        <span className={`text-[11px] font-black uppercase tracking-wider px-2.5 py-1 rounded-lg border mb-1 ${theme === 'light' ? 'bg-gray-100 border-gray-200 text-slate-600' : 'bg-white/[0.06] border-white/[0.1] text-gray-200'}`}>
+                          {BRAND_LABEL[card.brand] || card.brand}
+                        </span>
+                      )}
                     </div>
 
                     <div className="space-y-2">
@@ -137,12 +273,22 @@ const Cards: React.FC = () => {
                           initial={{ width: 0 }}
                           animate={{ width: `${limitPercentage}%` }}
                           transition={{ delay: 0.2, duration: 1 }}
-                          className={`h-full rounded-full bg-gradient-to-r from-teal-600 to-teal-400`}
+                          className={`h-full rounded-full ${limitPercentage >= 100 ? 'bg-gradient-to-r from-red-600 to-red-400' : limitPercentage >= 80 ? 'bg-gradient-to-r from-amber-600 to-amber-400' : 'bg-gradient-to-r from-teal-600 to-teal-400'}`}
                         />
                       </div>
-                      <div className={`flex justify-between items-center text-xs font-medium transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>
-                        <span>{limitPercentage.toFixed(0)}% utilizado</span>
+                      <div className={`flex justify-between items-center text-xs font-medium transition-colors ${theme === 'light' ? 'text-slate-600' : 'text-gray-300'}`}>
+                        <span>{limitPercentage.toFixed(0)}% utilizado (<PrivateValue>{formatCurrency(currentInvoiceAmount)}</PrivateValue>)</span>
                         <span><PrivateValue>{formatCurrency(card.limit)}</PrivateValue></span>
+                      </div>
+                      {showAlert && (
+                        <p className={`text-[11px] font-bold flex items-center gap-1 ${limitPercentage >= 100 ? 'text-red-500' : 'text-amber-500'}`}>
+                          <Icon name="warning" className="text-sm" />
+                          {limitPercentage >= 100 ? 'Limite estourado' : 'Atenção: limite quase no fim'}
+                        </p>
+                      )}
+                      <div className={`flex justify-between items-center text-[11px] mt-1 font-medium transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-white'}`}>
+                        <span>Fecha dia {card.closingDay}</span>
+                        <span>Vence dia {card.dueDay}</span>
                       </div>
                     </div>
 
@@ -161,6 +307,26 @@ const Cards: React.FC = () => {
                           </Link>
                         </div>
 
+                        <div className="grid grid-cols-3 gap-2 mt-4" onClick={(e) => e.stopPropagation()}>
+                          <Link to={`/invoice?cardId=${card.id}`} className="flex items-center justify-center gap-1.5 h-10 rounded-xl bg-teal-500 text-white text-xs font-bold hover:bg-teal-600 transition-colors">
+                            <Icon name="payments" className="text-base" /> Pagar
+                          </Link>
+                          <button
+                            onClick={() => updateCard(card.id, { status: isBlocked ? 'active' : 'blocked' })}
+                            className={`flex items-center justify-center gap-1.5 h-10 rounded-xl border text-xs font-bold transition-colors ${isBlocked
+                              ? 'bg-green-500/10 border-green-500/30 text-green-500'
+                              : (theme === 'light' ? 'bg-white border-gray-200 text-slate-600 hover:bg-gray-50' : 'bg-white/[0.05] border-white/[0.1] text-gray-300 hover:bg-white/[0.1]')}`}
+                          >
+                            <Icon name={isBlocked ? 'lock_open' : 'lock'} className="text-base" />
+                            {isBlocked ? 'Desbloquear' : 'Bloquear'}
+                          </button>
+                          <button
+                            onClick={() => setExpandedCardId(null)}
+                            className={`flex items-center justify-center gap-1.5 h-10 rounded-xl border text-xs font-bold transition-colors ${theme === 'light' ? 'bg-white border-gray-200 text-slate-600 hover:bg-gray-50' : 'bg-white/[0.05] border-white/[0.1] text-gray-300 hover:bg-white/[0.1]'}`}
+                          >
+                            <Icon name="close" className="text-base" /> Fechar
+                          </button>
+                        </div>
                         <div className="space-y-3 max-h-[320px] overflow-y-auto pr-2 custom-scrollbar">
                           {cardTransactions.length > 0 ? (
                             cardTransactions.map(t => {
@@ -241,9 +407,9 @@ const Cards: React.FC = () => {
       </div>
 
       {/* Overlay to close when clicking outside */}
-      {expandedCardId && (
+      {expandedCardId && !isDesktop && (
         <div
-          className="fixed inset-0 z-10"
+          className="fixed inset-0 z-[35]"
           onClick={() => setExpandedCardId(null)}
         />
       )}
@@ -261,6 +427,13 @@ const Cards: React.FC = () => {
             setEditingCard(null);
           }}
           deleteCard={deleteCard}
+        />
+      )}
+
+      {isImportModalOpen && (
+        <ImportInvoiceModal
+          isOpen={isImportModalOpen}
+          onClose={() => setIsImportModalOpen(false)}
         />
       )}
     </div>
@@ -285,6 +458,9 @@ const FormRow: React.FC<{ icon: string; label: string; children: React.ReactNode
 
 const NewCardModal: React.FC<{ onClose: () => void; onSave: (c: any) => void }> = ({ onClose, onSave }) => {
   const { accounts } = useFinance();
+  const { theme } = useTheme();
+  const isLight = theme === 'light';
+  const inputText = isLight ? 'text-slate-900 placeholder-slate-400' : 'text-white placeholder-gray-600';
   const [name, setName] = useState('');
   const [lastDigits, setLastDigits] = useState('');
   const [limit, setLimit] = useState('');
@@ -340,7 +516,7 @@ const NewCardModal: React.FC<{ onClose: () => void; onSave: (c: any) => void }> 
                 value={name}
                 onChange={e => setName(e.target.value)}
                 placeholder="Descrição"
-                className="w-full max-w-[180px] bg-transparent text-right text-white placeholder-gray-600 outline-none text-sm"
+                className={`w-full max-w-[180px] bg-transparent text-right outline-none text-sm ${inputText}`}
               />
               <div className="relative shrink-0">
                 <button
@@ -377,7 +553,7 @@ const NewCardModal: React.FC<{ onClose: () => void; onSave: (c: any) => void }> 
 
           {/* Limite */}
           <FormRow icon="attach_money" label="Limite">
-            <div className="flex items-center gap-1 text-white">
+            <div className={`flex items-center gap-1 ${inputText}`}>
               <span className="text-gray-500 text-sm">R$</span>
               <input
                 type="number"
@@ -385,14 +561,14 @@ const NewCardModal: React.FC<{ onClose: () => void; onSave: (c: any) => void }> 
                 value={limit}
                 onChange={e => setLimit(e.target.value)}
                 placeholder="0,00"
-                className="bg-transparent text-right outline-none w-28 placeholder-gray-600 font-medium"
+                className={`bg-transparent text-right outline-none w-28 font-medium ${inputText}`}
               />
             </div>
           </FormRow>
 
           {/* Fatura Atual */}
           <FormRow icon="receipt" label="Fatura Atual">
-            <div className="flex items-center gap-1 text-white">
+            <div className={`flex items-center gap-1 ${inputText}`}>
               <span className="text-gray-500 text-sm">R$</span>
               <input
                 type="number"
@@ -400,7 +576,7 @@ const NewCardModal: React.FC<{ onClose: () => void; onSave: (c: any) => void }> 
                 value={currentInvoice}
                 onChange={e => setCurrentInvoice(e.target.value)}
                 placeholder="0,00"
-                className="bg-transparent text-right outline-none w-28 placeholder-gray-600 font-medium"
+                className={`bg-transparent text-right outline-none w-28 font-medium ${inputText}`}
               />
             </div>
           </FormRow>
@@ -429,7 +605,14 @@ const NewCardModal: React.FC<{ onClose: () => void; onSave: (c: any) => void }> 
               <Dropdown
                 options={[
                   { label: 'Nenhuma', value: '' },
-                  ...accounts.map(a => ({ label: a.name, value: a.id }))
+                  ...accounts.map(a => {
+                    const bank = BANKS.find(b => b.name === a.bankName);
+                    return {
+                      label: a.name,
+                      value: a.id,
+                      logo: bank?.logo
+                    };
+                  })
                 ]}
                 value={linkedAccountId}
                 onChange={setLinkedAccountId}
@@ -475,14 +658,14 @@ const NewCardModal: React.FC<{ onClose: () => void; onSave: (c: any) => void }> 
           {/* Importação de Pagamentos */}
           <div className="mt-8">
             <p className="text-xs text-gray-500 mb-3 px-1 uppercase tracking-wider font-bold">Últimos 4 dígitos</p>
-            <div className="border border-white/[0.1] rounded-xl p-4 bg-white/[0.02]">
+            <div className={`border rounded-xl p-4 ${isLight ? 'border-gray-200 bg-gray-50' : 'border-white/[0.1] bg-white/[0.02]'}`}>
               <input
                 type="text"
                 maxLength={4}
                 value={lastDigits}
                 onChange={e => setLastDigits(e.target.value)}
                 placeholder="1234"
-                className="w-full bg-transparent text-sm text-white placeholder-gray-600 outline-none"
+                className={`w-full bg-transparent text-sm outline-none ${inputText}`}
               />
             </div>
           </div>

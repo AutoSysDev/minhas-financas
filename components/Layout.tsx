@@ -13,6 +13,9 @@ import { useToast } from '../context/ToastContext';
 import { useNotifications } from '../context/NotificationContext';
 import { NotificationType } from '../types/notifications';
 import { logError } from '../utils/helpers';
+import { useAppUpdate } from '../src/hooks/useAppUpdate';
+import { useInvestorProfile } from '../context/InvestorProfileContext';
+import { InvestorProfileModal } from './Onboarding/InvestorProfileModal';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -50,31 +53,37 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
 }
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
+  const { updateAvailable, performUpdate, downloading, downloadProgress } = useAppUpdate();
   const location = useLocation();
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const { isPrivacyMode, togglePrivacyMode } = usePrivacy();
   const { theme, toggleTheme } = useTheme();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  // Derived state to control UI rendering: on mobile, if menu is open, we always want expanded view
+  const isUICollapsed = isSidebarCollapsed && !isMobileMenuOpen;
   const { toast } = useToast();
   const { addNotification } = useNotifications();
+  
+  // Onboarding modal
+  const { profile, isLoaded } = useInvestorProfile();
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  
+  // Show onboarding modal on first visit
+  React.useEffect(() => {
+    if (isLoaded && profile && !profile.completedOnboarding) {
+      setShowOnboarding(true);
+    }
+  }, [isLoaded, profile]);
 
   // Ativar agendador de notificações
   useNotificationScheduler();
 
   const handleUIError = async (error: any) => {
+    // Only show toast, do not add persistent notification for UI errors
     toast.error('Erro inesperado na interface. Suas alterações foram preservadas.');
-    try {
-      await addNotification({
-        type: NotificationType.WEEKLY_SUMMARY,
-        title: 'Erro de Interface',
-        message: error?.message ?? 'Falha ao renderizar componente',
-        icon: 'error',
-        color: '#ef4444',
-        priority: 'high',
-        actionUrl: '/reports'
-      });
-    } catch { }
+    console.error('UI Error captured:', error);
   };
 
   const menuItems = [
@@ -93,9 +102,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { path: '/reports', icon: 'bar_chart', label: 'Relatórios' },
     { path: '/statistics', icon: 'show_chart', label: 'Estatísticas' },
     { label: 'COMPARTILHAMENTO', isHeader: true },
+    { path: '/plans', icon: 'workspace_premium', label: 'Planos' },
     { path: '/shared-dashboard', icon: 'group', label: 'Dashboard Conjunto' },
     { label: 'CONFIGURAÇÕES', isHeader: true },
     { path: '/settings', icon: 'settings', label: 'Configurações' },
+    { path: '/help', icon: 'help', label: 'Ajuda' },
   ];
 
   const handleSignOut = async () => {
@@ -109,12 +120,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const noiseBg = `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E")`;
 
   return (
-    <div className={`flex h-screen w-full overflow-hidden font-display selection:bg-teal-500/30 selection:text-teal-200 relative transition-colors duration-300 ${theme === 'light' ? 'bg-gray-50' : 'bg-[#0f1216]'}`}>
+    <div className={`flex h-screen w-full overflow-hidden font-display selection:bg-teal-500/30 selection:text-teal-200 relative transition-colors duration-300 ${theme === 'light' ? 'bg-gray-50' : 'bg-background-main'}`}>
 
       {/* GLOBAL BACKGROUND: Mesh Gradient + Noise */}
       <div className="absolute inset-0 z-0 pointer-events-none">
         {/* Base Dark Background */}
-        <div className={`absolute inset-0 transition-colors duration-300 ${theme === 'light' ? 'bg-gray-50' : 'bg-[#0f1216]'}`}></div>
+        <div className={`absolute inset-0 transition-colors duration-300 ${theme === 'light' ? 'bg-gray-50' : 'bg-background-main'}`}></div>
 
         {/* Mesh Gradients */}
         {/* Mesh Gradients - Optimized for Mobile */}
@@ -128,25 +139,37 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
       {/* Sidebar (Glassmorphism) */}
       <aside className={`
-        fixed md:relative z-50 h-full w-64 shrink-0 transform transition-transform duration-300 ease-out
-        ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+        fixed md:relative z-50 h-full shrink-0 transform transition-all duration-300 ease-out
+        ${isMobileMenuOpen ? 'translate-x-0 w-64' : '-translate-x-full md:translate-x-0'}
+        ${isSidebarCollapsed ? 'md:w-20' : 'md:w-64'}
       `}>
         <div className={`h-full flex flex-col border-r relative transition-colors duration-300 ${theme === 'light'
           ? 'bg-[#F8FAFC] border-gray-200'
-          : 'bg-white/[0.02] border-white/[0.05] backdrop-blur-xl'
+          : 'bg-surface-glass border-border-glass backdrop-blur-xl'
           }`}>
           {/* Logo Area */}
-          <div className="p-6 flex items-center gap-3 shrink-0">
-            <div className={`size-7 rounded-xl border flex items-center justify-center shadow-lg backdrop-blur-md overflow-hidden p-1.5 transition-colors duration-300 ${theme === 'light' ? 'bg-teal-500/10 border-teal-500/20' : 'bg-gradient-to-br from-teal-400/20 to-blue-600/20 border-white/10'}`}>
-              <img src="/logo.png" alt="Monely Finance" className="w-full h-full object-contain" />
+          <div className={`flex items-center shrink-0 transition-all duration-300 ${isUICollapsed ? 'flex-col justify-center gap-4 p-4' : 'justify-between p-6'}`}>
+            <div className="flex items-center gap-3">
+              <div className={`size-10 rounded-xl border flex items-center justify-center shadow-lg backdrop-blur-md overflow-hidden p-0.5 transition-colors duration-300 ${theme === 'light' ? 'bg-teal-500/10 border-teal-500/20' : 'bg-gradient-to-br from-teal-400/20 to-blue-600/20 border-white/10'}`}>
+                <img src="/logo.png" alt="Monely Finance" className="w-full h-full object-contain" />
+              </div>
+              {!isUICollapsed && (
+                <h2 className={`text-lg font-bold tracking-tight transition-colors duration-300 ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>Monely Finance</h2>
+              )}
             </div>
-            <h2 className={`text-lg font-bold tracking-tight transition-colors duration-300 ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>Monely Finance</h2>
+
+            <button
+              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+              className={`hidden md:flex items-center justify-center p-1.5 rounded-lg transition-colors ${theme === 'light' ? 'hover:bg-gray-200 text-gray-400 hover:text-gray-600' : 'hover:bg-white/10 text-gray-500 hover:text-gray-300'}`}
+            >
+              <Icon name={isSidebarCollapsed ? "chevron_right" : "chevron_left"} className="text-xl" />
+            </button>
           </div>
 
           {/* User Profile */}
-          <div className="px-4 mb-6">
-            <div className={`p-3 rounded-xl border flex items-center gap-3 transition-all cursor-pointer group ${theme === 'light' ? 'bg-gray-100/50 border-gray-200 hover:bg-gray-100' : 'bg-white/[0.03] border-white/[0.05] hover:bg-white/[0.05]'}`}>
-              <div className="size-7 rounded-full bg-gradient-to-br from-teal-400 to-blue-500 p-[1px]">
+          <div className={`px-4 mb-6 transition-all duration-300 ${isUICollapsed ? 'flex justify-center' : ''}`}>
+            <div className={`p-3 rounded-xl border flex items-center gap-3 transition-all cursor-pointer group ${theme === 'light' ? 'bg-gray-100/50 border-gray-200 hover:bg-gray-100' : 'bg-white/[0.05] border-white/[0.1] hover:bg-white/[0.1]'} ${isUICollapsed ? 'justify-center w-full' : ''}`}>
+              <div className="size-7 rounded-full bg-gradient-to-br from-teal-400 to-blue-500 p-[1px] shrink-0">
                 <div className={`w-full h-full rounded-full flex items-center justify-center overflow-hidden ${theme === 'light' ? 'bg-white' : 'bg-[#0f1216]'}`}>
                   {user?.user_metadata?.avatar_url ? (
                     <img src={user.user_metadata.avatar_url} alt="User" className="w-full h-full object-cover" />
@@ -155,40 +178,46 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   )}
                 </div>
               </div>
-              <div className="min-w-0 flex-1">
-                <p className={`text-sm font-bold truncate group-hover:text-teal-400 transition-colors ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>
-                  {user?.user_metadata?.full_name || 'Usuário'}
-                </p>
-                <p className={`text-[10px] truncate transition-colors ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`}>{user?.email}</p>
-              </div>
+              {!isUICollapsed && (
+                <div className="min-w-0 flex-1">
+                  <p className={`text-sm font-bold truncate group-hover:text-teal-400 transition-colors ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>
+                    {user?.user_metadata?.full_name || 'Usuário'}
+                  </p>
+                  <p className={`text-[10px] truncate transition-colors ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`}>{user?.email}</p>
+                </div>
+              )}
             </div>
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 overflow-y-auto px-4 py-2 space-y-1 custom-scrollbar">
+          <nav className="flex-1 overflow-y-auto py-2 space-y-1 custom-scrollbar px-4">
             {menuItems.map((item, index) => (
               item.isHeader ? (
-                <div key={`header-${index}`} className={`px-3 pt-6 pb-2 text-[10px] font-bold uppercase tracking-wider ${theme === 'light' ? 'text-gray-400' : 'text-gray-600'}`}>
-                  {item.label}
-                </div>
+                !isSidebarCollapsed && (
+                  <div key={`header-${index}`} className={`px-3 pt-6 pb-2 text-[10px] font-bold uppercase tracking-wider ${theme === 'light' ? 'text-gray-400' : 'text-gray-400'}`}>
+                    {item.label}
+                  </div>
+                )
               ) : (
                 <Link
                   key={item.path}
                   to={item.path!}
+                  title={isSidebarCollapsed ? item.label : undefined}
                   className={`
                     flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group
+                    ${isSidebarCollapsed ? 'justify-center' : ''}
                     ${location.pathname === item.path
-                      ? 'bg-teal-500/10 text-teal-400 shadow-sm'
+                      ? 'bg-teal-500/20 text-teal-400 shadow-sm'
                       : theme === 'light'
                         ? 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                        : 'text-gray-400 hover:bg-white/5 hover:text-white'}
+                        : 'text-gray-400 hover:bg-white/10 hover:text-white'}
                   `}
                 >
                   <Icon
                     name={item.icon!}
                     className={`text-lg transition-colors ${location.pathname === item.path ? 'text-teal-400' : theme === 'light' ? 'text-gray-400 group-hover:text-gray-600' : 'text-gray-500 group-hover:text-white'}`}
                   />
-                  {item.label}
+                  {!isSidebarCollapsed && item.label}
                 </Link>
               )
             ))}
@@ -197,11 +226,19 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           {/* Footer Actions */}
           <div className={`p-4 border-t space-y-2 ${theme === 'light' ? 'border-gray-200' : 'border-white/[0.05]'}`}>
             <button
+              onClick={toggleTheme}
+              className={`md:hidden w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group ${isUICollapsed ? 'justify-center' : ''} ${theme === 'light' ? 'text-gray-600 hover:bg-gray-100' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
+            >
+              <Icon name={theme === 'light' ? "dark_mode" : "light_mode"} className="text-lg" />
+              {!isUICollapsed && (theme === 'light' ? "Modo Escuro" : "Modo Claro")}
+            </button>
+            <button
               onClick={handleSignOut}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group ${theme === 'light' ? 'text-gray-600 hover:text-red-500 hover:bg-red-50' : 'text-gray-400 hover:text-red-400 hover:bg-red-500/10'}`}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group ${isUICollapsed ? 'justify-center' : ''} ${theme === 'light' ? 'text-gray-600 hover:text-red-500 hover:bg-red-50' : 'text-gray-400 hover:text-red-400 hover:bg-red-500/10'}`}
+              title={isUICollapsed ? "Sair da conta" : undefined}
             >
               <Icon name="logout" className={`text-lg transition-colors ${theme === 'light' ? 'text-gray-400 group-hover:text-red-500' : 'group-hover:text-red-400'}`} />
-              Sair da conta
+              {!isUICollapsed && "Sair da conta"}
             </button>
           </div>
         </div>
@@ -238,9 +275,24 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
 
           <div className="flex items-center gap-3 md:gap-6">
+            {updateAvailable && (
+              <button
+                onClick={performUpdate}
+                disabled={downloading}
+                className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-teal-500 to-emerald-500 text-white text-xs font-bold rounded-full shadow-lg hover:shadow-emerald-500/20 transition-all animate-pulse disabled:opacity-70 disabled:animate-none"
+              >
+                <Icon name={downloading ? "downloading" : "system_update"} className={downloading ? "animate-spin" : ""} />
+                <span className="hidden md:inline">
+                  {downloading ? `Baixando ${downloadProgress}%` : "Nova Versão"}
+                </span>
+                <span className="md:hidden">
+                  {downloading ? `${downloadProgress}%` : ""}
+                </span>
+              </button>
+            )}
             <button
               onClick={toggleTheme}
-              className={`relative p-2 rounded-full transition-all duration-300 group ${theme === 'light' ? 'text-amber-500 bg-amber-500/10 hover:bg-amber-500/20 rotate-12' : 'text-gray-400 hover:text-white hover:bg-white/10 hover:-rotate-12'}`}
+              className={`hidden md:block relative p-2 rounded-full transition-all duration-300 group ${theme === 'light' ? 'text-amber-500 bg-amber-500/10 hover:bg-amber-500/20 rotate-12' : 'text-gray-400 hover:text-white hover:bg-white/10 hover:-rotate-12'}`}
               title={theme === 'light' ? "Modo Escuro" : "Modo Claro"}
             >
               <Icon name={theme === 'light' ? "light_mode" : "dark_mode"} className="text-xl" />
@@ -278,6 +330,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
       {/* Floating Action Button - Global */}
       <FABContainer />
+      
+      {/* Onboarding Modal */}
+      <InvestorProfileModal 
+        isOpen={showOnboarding} 
+        onClose={() => setShowOnboarding(false)} 
+      />
     </div>
   );
 };

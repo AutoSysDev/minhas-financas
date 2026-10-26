@@ -8,6 +8,7 @@ import { NotificationProvider } from './context/NotificationContext';
 import { UIProvider } from './context/UIContext';
 import { ToastProvider } from './context/ToastContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { InvestorProfileProvider } from './context/InvestorProfileContext';
 import { SharedAccountProvider } from './context/SharedAccountContext';
 import { SupermarketProvider } from './context/SupermarketContext';
 import { SplashScreen } from './components/SplashScreen';
@@ -22,6 +23,7 @@ const Transactions = lazy(() => import('./pages/Transactions'));
 const Accounts = lazy(() => import('./pages/Accounts'));
 const Reports = lazy(() => import('./pages/Reports'));
 const Settings = lazy(() => import('./pages/Settings'));
+const HelpPage = lazy(() => import('./pages/HelpPage'));
 const Statistics = lazy(() => import('./pages/Statistics'));
 const Calendar = lazy(() => import('./pages/Calendar'));
 const Login = lazy(() => import('./pages/Login'));
@@ -32,6 +34,7 @@ const Investments = lazy(() => import('./pages/Investments'));
 const ShoppingListsPage = lazy(() => import('./pages/Supermarket/ShoppingListsPage'));
 const ShoppingListDetailPage = lazy(() => import('./pages/Supermarket/ShoppingListDetailPage'));
 const SharedDashboard = lazy(() => import('./pages/SharedDashboard'));
+const PlansPage = lazy(() => import('./pages/PlansPage'));
 
 const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, loading } = useAuth();
@@ -45,14 +48,15 @@ const App: React.FC = () => {
   return (
     <AuthProvider>
       <ThemeProvider>
-        <PrivacyProvider>
-          <NotificationProvider>
-            <UIProvider>
-              <ToastProvider>
-                <SharedAccountProvider>
-                  <FinanceProvider>
-                    <SupermarketProvider>
-                      <Router>
+        <InvestorProfileProvider>
+          <PrivacyProvider>
+            <NotificationProvider>
+              <UIProvider>
+                <ToastProvider>
+                  <SharedAccountProvider>
+                    <FinanceProvider>
+                      <SupermarketProvider>
+                        <Router>
 
                         <Suspense fallback={<SplashScreen />}>
                           <Routes>
@@ -72,11 +76,13 @@ const App: React.FC = () => {
                               <Route path="/reports" element={<Reports />} />
                               <Route path="/statistics" element={<Statistics />} />
                               <Route path="/settings" element={<Settings />} />
+                              <Route path="/help" element={<HelpPage />} />
                               <Route path="/chart-test" element={<ChartTest />} />
                               <Route path="/notifications" element={<NotificationSettings />} />
                               <Route path="/investments" element={<Investments />} />
                               <Route path="/supermarket" element={<ShoppingListsPage />} />
                               <Route path="/supermarket/:id" element={<ShoppingListDetailPage />} />
+                              <Route path="/plans" element={<PlansPage />} />
                               <Route path="/shared-dashboard" element={<SharedDashboard />} />
                             </Route>
 
@@ -85,12 +91,13 @@ const App: React.FC = () => {
                         </Suspense>
                       </Router>
                     </SupermarketProvider>
-                  </FinanceProvider>
-                </SharedAccountProvider>
-              </ToastProvider>
-            </UIProvider>
-          </NotificationProvider>
-        </PrivacyProvider>
+                    </FinanceProvider>
+                  </SharedAccountProvider>
+                </ToastProvider>
+              </UIProvider>
+            </NotificationProvider>
+          </PrivacyProvider>
+        </InvestorProfileProvider>
       </ThemeProvider>
     </AuthProvider>
   );

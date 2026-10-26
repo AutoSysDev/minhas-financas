@@ -227,16 +227,16 @@ const Login: React.FC = () => {
 
                                 <div className="space-y-1.5">
                                     <label className="text-[11px] font-medium text-gray-400 uppercase tracking-wider ml-1" htmlFor="email">
-                                        E-mail
+                                        Usuário ou E-mail
                                     </label>
                                     <div className="relative group/input">
                                         <input
                                             id="email"
-                                            type="email"
+                                            type="text"
                                             value={email}
                                             onChange={(e) => setEmail(e.target.value)}
                                             className="w-full pl-4 pr-4 py-3.5 bg-white/[0.03] border border-white/[0.08] rounded-xl text-white placeholder-white/20 focus:border-teal-500/50 focus:ring-1 focus:ring-teal-500/50 focus:bg-white/[0.05] outline-none transition-all duration-300 text-sm font-medium"
-                                            placeholder="exemplo@email.com"
+                                            placeholder="pggabrielone ou exemplo@email.com"
                                             required
                                             disabled={!supabaseAvailable}
                                         />

@@ -25,3 +25,20 @@ dist-ssr
 
 # Environment variables
 .env
+
+# OpenCode config local (contém token de acesso Supabase)
+opencode.json
+
+# Artefatos de build e dados locais (não versionar)
+release/
+electron/backend-dist/
+python/__pycache__/
+python/monely.db
+public/downloads/*.apk
+temp_nubank_repo/
+.agent/
+testsprite_tests/tmp/
+.trae/
+
+# Script de debug com chave hardcoded (usar .env)
+check_db.js

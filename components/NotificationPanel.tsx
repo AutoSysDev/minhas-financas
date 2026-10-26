@@ -57,13 +57,21 @@ export const NotificationPanel: React.FC = () => {
     const [panelPosition, setPanelPosition] = useState({ top: 0, right: 0 });
 
     useEffect(() => {
-        if (isOpen && buttonRef.current) {
-            const rect = buttonRef.current.getBoundingClientRect();
-            setPanelPosition({
-                top: rect.bottom + 8,
-                right: window.innerWidth - rect.right
-            });
-        }
+        const updatePosition = () => {
+            if (isOpen && buttonRef.current) {
+                const rect = buttonRef.current.getBoundingClientRect();
+                const isMobile = window.innerWidth < 640;
+                
+                setPanelPosition({
+                    top: rect.bottom + 8,
+                    right: isMobile ? 16 : window.innerWidth - rect.right
+                });
+            }
+        };
+
+        updatePosition();
+        window.addEventListener('resize', updatePosition);
+        return () => window.removeEventListener('resize', updatePosition);
     }, [isOpen]);
 
     const panelContent = isOpen && (
@@ -77,7 +85,7 @@ export const NotificationPanel: React.FC = () => {
 
             {/* Panel de notificações */}
             <div
-                className="fixed w-96 max-h-[600px] bg-[#1a1d21] border border-white/[0.1] rounded-xl shadow-2xl z-[9999] flex flex-col animate-fade-in"
+                className="fixed w-[calc(100vw-2rem)] sm:w-96 max-h-[600px] bg-[#1a1d21] border border-white/[0.1] rounded-xl shadow-2xl z-[9999] flex flex-col animate-fade-in"
                 style={{ top: `${panelPosition.top}px`, right: `${panelPosition.right}px` }}
             >
                 {/* Header */}

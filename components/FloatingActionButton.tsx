@@ -92,7 +92,7 @@ export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
                         <button
                             key={action.label}
                             onClick={action.onClick}
-                            className={`flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-lg transition-all duration-200 bg-[#121820] border border-white/10 text-white hover:border-teal-500/50 hover:shadow-[0_0_15px_-5px_rgba(45,212,191,0.3)] backdrop-blur-md active:scale-95 min-h-[48px] group`}
+                            className={`flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-lg transition-all duration-200 bg-[#0f1216]/80 border border-white/[0.08] ring-1 ring-white/5 text-white hover:border-teal-500/50 hover:shadow-[0_0_15px_-5px_rgba(45,212,191,0.3)] backdrop-blur-xl active:scale-95 min-h-[48px] group`}
                             style={{
                                 transitionDelay: isOpen ? `${index * 50}ms` : '0ms'
                             }}

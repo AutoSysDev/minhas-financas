@@ -121,6 +121,30 @@ export const transactionService = {
           // Vamos seguir o padrão simples de insert batch.
         });
       }
+    } else if (transaction.type === TransactionType.TRANSFER && transaction.destinationAccountId) {
+      // 1. Saída (Expense)
+      newTransactions.push({
+        user_id: userId,
+        description: `Transferência enviada: ${transaction.description}`,
+        amount: transaction.amount,
+        date: transaction.date,
+        type: TransactionType.EXPENSE,
+        category: 'Transferência',
+        account_id: transaction.accountId || null,
+        is_paid: true
+      });
+
+      // 2. Entrada (Income)
+      newTransactions.push({
+        user_id: userId,
+        description: `Transferência recebida: ${transaction.description}`,
+        amount: transaction.amount,
+        date: transaction.date,
+        type: TransactionType.INCOME,
+        category: 'Transferência',
+        account_id: transaction.destinationAccountId,
+        is_paid: true
+      });
     } else {
       newTransactions.push({
         user_id: userId,
@@ -144,43 +168,9 @@ export const transactionService = {
       throw new Error(error.message);
     }
 
-    // Atualizar Saldo da Conta
-    if (transaction.accountId && transaction.isPaid && !transaction.cardId) {
-      const { data: accData } = await supabase.from('accounts').select('balance').eq('id', transaction.accountId).single();
-      if (accData) {
-        let newBalance = accData.balance;
-        // Se for parcelado, o saldo é afetado apenas pelas parcelas pagas? 
-        // Normalmente parcelado no crédito afeta fatura. Parcelado no débito/conta é recorrente.
-        // Se isPaid=true, assume-se que todas as parcelas geradas estão pagas? 
-        // Ou apenas a primeira?
-        // FinanceContext assumia que se `newTransaction.isPaid`, impactava o saldo total?
-        // FinanceContext: if (newTransaction.accountId && newTransaction.isPaid && !newTransaction.cardId) ...
-        // Se for parcelado, `newTransactions` tem várias.
-        // Vamos iterar sobre as transações criadas.
-
-        let impact = 0;
-        newTransactions.forEach(t => {
-          if (t.is_paid) {
-            if (t.type === TransactionType.EXPENSE) impact -= t.amount;
-            else if (t.type === TransactionType.INCOME) impact += t.amount;
-          }
-        });
-
-        await supabase.from('accounts').update({ balance: newBalance + impact }).eq('id', transaction.accountId);
-      }
-    }
-
-    // Atualizar Fatura do Cartão
-    if (transaction.cardId && transaction.type === TransactionType.EXPENSE) {
-      const { data: cardData } = await supabase.from('cards').select('current_invoice').eq('id', transaction.cardId).single();
-      if (cardData) {
-        let invoiceImpact = 0;
-        newTransactions.forEach(t => {
-          invoiceImpact += t.amount;
-        });
-        await supabase.from('cards').update({ current_invoice: cardData.current_invoice + invoiceImpact }).eq('id', transaction.cardId);
-      }
-    }
+    // Note: Account balances and Card invoices are now handled by database triggers.
+    // See: supabase/migrations/20260124_balance_triggers.sql
+    return data;
 
     return data;
   },
@@ -200,22 +190,7 @@ export const transactionService = {
       throw new Error(error.message);
     }
 
-    // Reverter Saldo
-    if (t.account_id && t.is_paid && !t.card_id) {
-      const { data: accData } = await supabase.from('accounts').select('balance').eq('id', t.account_id).single();
-      if (accData) {
-        const newBalance = t.type === 'INCOME' ? accData.balance - t.amount : accData.balance + t.amount;
-        await supabase.from('accounts').update({ balance: newBalance }).eq('id', t.account_id);
-      }
-    }
-
-    // Reverter Fatura
-    if (t.card_id && t.type === 'EXPENSE') {
-      const { data: cardData } = await supabase.from('cards').select('current_invoice').eq('id', t.card_id).single();
-      if (cardData) {
-        await supabase.from('cards').update({ current_invoice: cardData.current_invoice - t.amount }).eq('id', t.card_id);
-      }
-    }
+    // Balance reversal logic moved to DB triggers.
   },
 
   /**
@@ -226,16 +201,7 @@ export const transactionService = {
     const { data: oldTransaction } = await supabase.from('transactions').select('*').eq('id', id).single();
     if (!oldTransaction) throw new Error('Transação não encontrada');
 
-    // 2. Reverter impacto antigo
-    if (oldTransaction.account_id && oldTransaction.is_paid && !oldTransaction.card_id) {
-      const { data: accData } = await supabase.from('accounts').select('balance').eq('id', oldTransaction.account_id).single();
-      if (accData) {
-        let reversedBalance = accData.balance;
-        if (oldTransaction.type === TransactionType.EXPENSE) reversedBalance += oldTransaction.amount;
-        else if (oldTransaction.type === TransactionType.INCOME) reversedBalance -= oldTransaction.amount;
-        await supabase.from('accounts').update({ balance: reversedBalance }).eq('id', oldTransaction.account_id);
-      }
-    }
+    // Balance logic handled by DB triggers.
 
     // 3. Atualizar transação
     const dbData: any = {};
@@ -257,34 +223,7 @@ export const transactionService = {
 
     if (error) throw new Error(error.message);
 
-    // 4. Aplicar novo impacto
-    // Mesclar dados
-    const newTransaction = { ...oldTransaction, ...dbData }; // dbData tem chaves snake_case? Não, dbData tem chaves snake_case. oldTransaction tem snake_case.
-    // oldTransaction vem do supabase select('*'), então é snake_case.
-
-    // Precisamos normalizar para lógica de saldo
-    const t = {
-      amount: newTransaction.amount,
-      type: newTransaction.type,
-      account_id: newTransaction.account_id,
-      card_id: newTransaction.card_id,
-      is_paid: newTransaction.is_paid
-    };
-
-    if (t.account_id && t.is_paid && !t.card_id) {
-      const { data: accData } = await supabase.from('accounts').select('balance').eq('id', t.account_id).single();
-      if (accData) {
-        let newBalance = accData.balance;
-        if (t.type === TransactionType.EXPENSE) newBalance -= t.amount;
-        else if (t.type === TransactionType.INCOME) newBalance += t.amount;
-        await supabase.from('accounts').update({ balance: newBalance }).eq('id', t.account_id);
-      }
-    }
-
-    // Nota: Atualização de fatura de cartão em update é complexa e não estava totalmente implementada no FinanceContext para Updates,
-    // apenas para Create/Delete. Vamos manter assim para evitar bugs novos, ou implementar?
-    // FinanceContext updateTransaction não atualizava invoice de cartão!
-    // Então manteremos sem atualizar invoice por enquanto para paridade.
+    // Balance impact handled by DB triggers.
 
     return {
       id: updatedData.id,

@@ -1,4 +1,7 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
+import { formatCurrency } from '../utils/helpers';
+import { useTheme } from '../context/ThemeContext';
 
 export interface CategoryData {
   name: string;
@@ -19,6 +22,7 @@ export interface MonthlyData {
 
 interface ExpensePieChartProps {
   data?: CategoryData[];
+  onSelect?: (name: string) => void;
 }
 
 interface SavingsBarChartProps {
@@ -30,11 +34,14 @@ interface IncomeExpenseChartProps {
 }
 
 // Gráfico de Pizza (Donut Chart)
-export const ExpensePieChart: React.FC<ExpensePieChartProps> = ({ data = [] }) => {
+export const ExpensePieChart: React.FC<ExpensePieChartProps> = ({ data = [], onSelect }) => {
+  const { theme } = useTheme();
+  const isLight = theme === 'light';
   if (!data || data.length === 0) {
     return (
-      <div className="w-full h-64 flex items-center justify-center text-gray-500 dark:text-gray-400">
-        Sem dados para exibir
+      <div className="w-full h-64 flex flex-col items-center justify-center gap-3 text-center">
+        <p className={isLight ? 'text-slate-500' : 'text-gray-400'}>Sem dados para exibir</p>
+        <Link to="/transactions?action=new" className="px-4 py-2 rounded-lg bg-teal-500 text-white text-xs font-bold">Lançar gasto</Link>
       </div>
     );
   }
@@ -74,22 +81,22 @@ export const ExpensePieChart: React.FC<ExpensePieChartProps> = ({ data = [] }) =
   return (
     <div className="w-full h-auto flex flex-col">
       <div className="h-64 w-full shrink-0">
-        <svg viewBox="0 0 100 100" className="w-full h-full">
-          {/* Círculo interno (donut hole) */}
-          <circle cx="50" cy="50" r="25" fill="transparent" className="dark:fill-gray-800" />
-
-          {/* Fatias do gráfico */}
+        <svg viewBox="0 0 100 100" className="w-full h-full" role="img" aria-label={`Gastos por categoria, total ${formatCurrency(total)}`}>
           {slices.map((slice, index) => (
             <g key={index}>
               <path
                 d={slice.pathData}
                 fill={slice.color}
                 className="transition-opacity hover:opacity-80 cursor-pointer"
-              />
+                tabIndex={onSelect ? 0 : -1}
+                onClick={() => onSelect?.(slice.name)}
+                onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && onSelect) { e.preventDefault(); onSelect(slice.name); } }}
+              >
+                <title>{`${slice.name}: ${formatCurrency(slice.value)} (${slice.percentage.toFixed(1)}%)`}</title>
+              </path>
             </g>
           ))}
 
-          {/* Círculo interno branco */}
           <circle cx="50" cy="50" r="25" fill="white" className="dark:fill-gray-800" />
         </svg>
       </div>
@@ -99,21 +106,25 @@ export const ExpensePieChart: React.FC<ExpensePieChartProps> = ({ data = [] }) =
         {data.map((item, index) => {
           const percentage = ((item.value / total) * 100).toFixed(1);
           return (
-            <div key={index} className="flex items-center justify-between text-sm">
+            <button
+              key={index}
+              onClick={() => onSelect?.(item.name)}
+              className={`w-full flex items-center justify-between text-sm p-2 rounded-lg transition-colors ${onSelect ? 'hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer' : ''}`}
+            >
               <div className="flex items-center gap-2">
                 <div
                   className="w-3 h-3 rounded-full"
                   style={{ backgroundColor: item.color }}
                 />
-                <span className="text-gray-300">{item.name}</span>
+                <span className={isLight ? 'text-slate-700' : 'text-gray-300'}>{item.name}</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="font-semibold text-white">
-                  R$ {item.value.toFixed(2)}
+                <span className={`font-semibold ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                  <span>{formatCurrency(item.value)}</span>
                 </span>
-                <span className="text-gray-400">({percentage}%)</span>
+                <span className={isLight ? 'text-slate-400' : 'text-gray-400'}>({percentage}%)</span>
               </div>
-            </div>
+            </button>
           );
         })}
       </div>
@@ -123,17 +134,18 @@ export const ExpensePieChart: React.FC<ExpensePieChartProps> = ({ data = [] }) =
 
 // Gráfico de Barras
 export const SavingsBarChart: React.FC<SavingsBarChartProps> = ({ data = [] }) => {
+  const { theme } = useTheme();
+  const isLight = theme === 'light';
   if (!data || data.length === 0) {
     return (
-      <div className="w-full h-80 flex items-center justify-center text-gray-500 dark:text-gray-400">
-        Sem dados para exibir
+      <div className="w-full h-80 flex flex-col items-center justify-center gap-3 text-center">
+        <p className={isLight ? 'text-slate-500' : 'text-gray-400'}>Sem dados para exibir</p>
+        <Link to="/transactions?action=new" className="px-4 py-2 rounded-lg bg-teal-500 text-white text-xs font-bold">Lançar transação</Link>
       </div>
     );
   }
 
-  const maxValue = Math.max(...data.map(d => Math.abs(d.savings)));
-  const minValue = Math.min(...data.map(d => d.savings), 0);
-  const range = maxValue - minValue;
+  const maxValue = Math.max(...data.map(d => Math.abs(d.savings)), 1);
 
   return (
     <div className="w-full h-80">
@@ -144,15 +156,17 @@ export const SavingsBarChart: React.FC<SavingsBarChartProps> = ({ data = [] }) =
 
           return (
             <div key={index} className="flex-1 flex flex-col items-center gap-2">
-              <div className="text-xs font-medium text-gray-600 dark:text-gray-400">
-                R$ {item.savings.toFixed(0)}
+              <div className={`text-xs font-medium ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                {formatCurrency(item.savings)}
               </div>
               <div
                 className={`w-full rounded-t transition-all hover:opacity-80 ${isPositive ? 'bg-green-500' : 'bg-red-500'
                   }`}
                 style={{ height: `${Math.max(heightPercent, 5)}%` }}
-              />
-              <div className="text-xs font-medium text-gray-700 dark:text-gray-300">
+              >
+                <title>{`${item.month}: ${formatCurrency(item.savings)}`}</title>
+              </div>
+              <div className={`text-xs font-medium ${isLight ? 'text-slate-600' : 'text-gray-300'}`}>
                 {item.month}
               </div>
             </div>
@@ -165,10 +179,12 @@ export const SavingsBarChart: React.FC<SavingsBarChartProps> = ({ data = [] }) =
 
 // Gráfico de Área (Receitas vs Despesas)
 export const IncomeExpenseChart: React.FC<IncomeExpenseChartProps> = ({ data = [] }) => {
+  const { theme } = useTheme();
   if (!data || data.length === 0) {
     return (
-      <div className="w-full h-full min-h-[200px] flex items-center justify-center text-gray-500 dark:text-gray-400">
-        Sem dados para exibir
+      <div className="w-full h-full min-h-[200px] flex flex-col items-center justify-center gap-3 text-center">
+        <p className={theme === 'light' ? 'text-slate-500' : 'text-gray-400'}>Sem dados para exibir</p>
+        <Link to="/transactions?action=new" className="px-4 py-2 rounded-lg bg-teal-500 text-white text-xs font-bold">Lançar transação</Link>
       </div>
     );
   }
@@ -322,7 +338,7 @@ export const IncomeExpenseChart: React.FC<IncomeExpenseChartProps> = ({ data = [
       {/* Labels dos meses */}
       <div className="flex justify-around mt-2 px-4">
         {safeData.map((item, index) => (
-          <div key={index} className="text-xs text-white font-medium">
+          <div key={index} className={`text-xs font-medium ${theme === 'light' ? 'text-slate-500' : 'text-gray-300'}`}>
             {item.month}
           </div>
         ))}
@@ -332,11 +348,11 @@ export const IncomeExpenseChart: React.FC<IncomeExpenseChartProps> = ({ data = [
       <div className="flex justify-center gap-6 mt-4">
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-full bg-green-500" />
-          <span className="text-sm text-white">Receitas</span>
+          <span className={`text-sm ${theme === 'light' ? 'text-slate-700' : 'text-gray-200'}`}>Receitas</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-full bg-blue-500" />
-          <span className="text-sm text-white">Despesas</span>
+          <span className={`text-sm ${theme === 'light' ? 'text-slate-700' : 'text-gray-200'}`}>Despesas</span>
         </div>
       </div>
     </div>

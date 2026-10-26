@@ -18,6 +18,7 @@ interface DropdownProps {
     label?: string;
     icon?: string; // Icon for the trigger button (left side)
     minimal?: boolean; // New prop for cleaner look
+    placement?: 'top' | 'bottom';
 }
 
 export const Dropdown: React.FC<DropdownProps> = ({
@@ -28,7 +29,8 @@ export const Dropdown: React.FC<DropdownProps> = ({
     className = '',
     label,
     icon,
-    minimal = false
+    minimal = false,
+    placement = 'bottom'
 }) => {
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -63,6 +65,8 @@ export const Dropdown: React.FC<DropdownProps> = ({
                 <div className={`flex items-center gap-2 overflow-hidden ${minimal ? 'flex-row' : ''}`}>
                     {selectedOption?.logo ? (
                         <img src={selectedOption.logo} alt="" className="size-5 rounded-full object-cover shadow-sm" />
+                    ) : selectedOption?.icon ? (
+                        <Icon name={selectedOption.icon} className={`text-lg ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`} />
                     ) : (
                         icon && !minimal && <Icon name={icon} className={theme === 'light' ? 'text-slate-400' : 'text-gray-400'} />
                     )}
@@ -77,8 +81,8 @@ export const Dropdown: React.FC<DropdownProps> = ({
             </button>
 
             {isOpen && (
-                <div className={`absolute z-50 mt-2 overflow-hidden border rounded-xl shadow-2xl animate-fade-in max-h-60 overflow-y-auto ring-1 transition-all ${minimal ? 'right-0 w-48' : 'w-full'
-                    } ${theme === 'light'
+                <div className={`absolute z-50 overflow-hidden border rounded-xl shadow-2xl animate-fade-in max-h-60 overflow-y-auto ring-1 transition-all ${minimal ? 'right-0 w-48' : 'w-full'
+                    } ${placement === 'top' ? 'bottom-full mb-2' : 'mt-2'} ${theme === 'light'
                         ? 'bg-white border-gray-200 ring-black/5'
                         : 'bg-[#1a1d21] border-white/[0.1] ring-white/5'
                     }`}>

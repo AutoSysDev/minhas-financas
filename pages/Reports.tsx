@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Icon } from '../components/Icon';
 import { PrivateValue } from '../components/PrivateValue';
 import { ExpensePieChart, IncomeExpenseChart, SavingsBarChart } from '../components/Charts';
@@ -6,7 +7,8 @@ import { useFinance } from '../context/FinanceContext';
 import { TransactionType } from '../types';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
-import { formatCurrency, getTransactionDate } from '../utils/helpers';
+import { formatCurrency, formatDate, getTransactionDate } from '../utils/helpers';
+import { buildCategoryData, buildMonthlyEvolution, monthOverMonth } from '../utils/financeInsights';
 import { Dropdown } from '../components/Dropdown';
 import { useTheme } from '../context/ThemeContext';
 
@@ -50,52 +52,17 @@ const Reports: React.FC = () => {
     });
   }, [transactions, typeFilter, categoryFilter, accountFilter, paidFilter, dateRange]);
 
-  // Dados para o Gráfico de Pizza (Despesas por Categoria)
-  const categoryExpenses = filteredTransactions
-    .filter(t => (t.type === TransactionType.EXPENSE || t.type === 'EXPENSE') && t.amount > 0)
-    .reduce((acc, t) => {
-      const category = t.category || 'Outros';
-      acc[category] = (acc[category] || 0) + Number(t.amount);
-      return acc;
-    }, {} as Record<string, number>);
+  // Dados para o Gráfico de Pizza (Despesas por Categoria) — com cor real + Outros
+  const categoryData = useMemo(
+    () => buildCategoryData(filteredTransactions, categories, { type: TransactionType.EXPENSE, top: 6 }),
+    [filteredTransactions, categories]
+  );
 
-  const categoryData = Object.entries(categoryExpenses)
-    .map(([name, value]) => ({ name, value: value as number, color: '#000000' }))
-    .filter(item => (item.value as number) > 0)
-    .sort((a, b) => (b.value as number) - (a.value as number))
-    .slice(0, 5);
-
-  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
-  categoryData.forEach((item, index) => {
-    item.color = COLORS[index % COLORS.length];
-  });
-
-  // Dados para Evolução Mensal e Economia
-  const last6Months = Array.from({ length: 6 }, (_, i) => {
-    const d = new Date();
-    d.setMonth(d.getMonth() - (5 - i));
-    return d;
-  });
-
-  const monthlyEvolutionData = last6Months.map(date => {
-    const monthStr = date.toISOString().slice(0, 7); // YYYY-MM
-    const monthName = date.toLocaleDateString('pt-BR', { month: 'short' });
-
-    const income = filteredTransactions
-      .filter(t => (t.type === TransactionType.INCOME || t.type === 'INCOME') && t.date.startsWith(monthStr))
-      .reduce((acc, t) => acc + Number(t.amount), 0);
-
-    const expense = filteredTransactions
-      .filter(t => (t.type === TransactionType.EXPENSE || t.type === 'EXPENSE') && t.date.startsWith(monthStr))
-      .reduce((acc, t) => acc + Number(t.amount), 0);
-
-    return {
-      month: monthName,
-      income,
-      expense,
-      savings: income - expense
-    };
-  });
+  // Evolução mensal usa o mesmo parse de data do resto do app
+  const monthlyEvolutionData = useMemo(
+    () => buildMonthlyEvolution(filteredTransactions, new Date(), 6),
+    [filteredTransactions]
+  );
 
   const savingsData = monthlyEvolutionData.map(d => ({
     month: d.month,
@@ -112,20 +79,21 @@ const Reports: React.FC = () => {
   const pendingCount = filteredTransactions.filter(t => !t.isPaid).length;
 
   const exportCsv = () => {
+    const accountName = (id?: string) => accounts.find(a => a.id === id)?.name || '';
     const headers = ['Data', 'Descrição', 'Categoria', 'Tipo', 'Valor', 'Status', 'Conta'];
     const csvContent = [
-      headers.join(','),
+      headers.join(';'),
       ...filteredTransactions.map(t => [
         t.date,
         '"' + String(t.description || '').replace(/"/g, '""') + '"',
         t.category || '',
         t.type,
-        Number(t.amount).toFixed(2),
+        Number(t.amount).toFixed(2).replace('.', ','),
         t.isPaid ? 'Pago' : 'Pendente',
-        t.accountId || ''
-      ].join(','))
+        accountName(t.accountId)
+      ].join(';'))
     ].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
@@ -141,16 +109,19 @@ const Reports: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col gap-8 animate-fade-in">
-      <div>
-        <h1 className="text-white text-3xl md:text-4xl font-black leading-tight tracking-[-0.033em]">Relatórios Detalhados</h1>
-        <p className="text-gray-600 dark:text-gray-400 mt-1">Análise profunda da sua saúde financeira.</p>
+    <div className="flex flex-col gap-8 animate-fade-in pb-20 md:pb-0">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className={`text-3xl md:text-4xl font-black leading-tight tracking-[-0.033em] ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>Relatórios</h1>
+          <p className={`mt-1 ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Para baixar, conferir e prestar contas. Para entender o mês, veja Estatísticas.</p>
+        </div>
+        <Link to="/statistics" className={`text-xs font-bold px-3 py-2 rounded-lg border ${theme === 'light' ? 'bg-white border-gray-200 text-teal-700' : 'bg-white/[0.05] border-white/[0.1] text-teal-300'}`}>Ir para Estatísticas</Link>
       </div>
 
-      <div className="bg-white/[0.02] backdrop-blur-md rounded-xl shadow-sm p-6 border border-white/[0.05]">
+      <div className={`backdrop-blur-md rounded-xl shadow-sm p-6 border ${theme === 'light' ? 'bg-white border-gray-200' : 'bg-white/[0.02] border-white/[0.05]'}`}>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <div>
-            <label className="block text-xs font-bold text-gray-400 mb-2">Tipo</label>
+            <label className={`block text-xs font-bold mb-2 ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Tipo</label>
             <Dropdown
               options={[{ label: 'Todos', value: 'all' }, { label: 'Receitas', value: 'income' }, { label: 'Despesas', value: 'expense' }]}
               value={typeFilter}
@@ -159,7 +130,7 @@ const Reports: React.FC = () => {
             />
           </div>
           <div>
-            <label className="block text-xs font-bold text-gray-400 mb-2">Categoria</label>
+            <label className={`block text-xs font-bold mb-2 ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Categoria</label>
             <Dropdown
               options={[{ label: 'Todas', value: 'Todas' }, ...categories.map(c => ({ label: c.name, value: c.name }))]}
               value={categoryFilter}
@@ -168,7 +139,7 @@ const Reports: React.FC = () => {
             />
           </div>
           <div>
-            <label className="block text-xs font-bold text-gray-400 mb-2">Conta</label>
+            <label className={`block text-xs font-bold mb-2 ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Conta</label>
             <Dropdown
               options={[{ label: 'Todos', value: 'Todos' }, ...accounts.map(a => ({ label: a.name, value: a.id }))]}
               value={accountFilter}
@@ -177,7 +148,7 @@ const Reports: React.FC = () => {
             />
           </div>
           <div>
-            <label className="block text-xs font-bold text-gray-400 mb-2">Status</label>
+            <label className={`block text-xs font-bold mb-2 ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Status</label>
             <Dropdown
               options={[{ label: 'Todos', value: 'all' }, { label: 'Pagos', value: 'paid' }, { label: 'Pendentes', value: 'pending' }]}
               value={paidFilter}
@@ -186,46 +157,50 @@ const Reports: React.FC = () => {
             />
           </div>
           <div>
-            <label className="block text-xs font-bold text-gray-400 mb-2">De</label>
+            <label className={`block text-xs font-bold mb-2 ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>De</label>
             <input
               type="date"
               value={dateRange.start}
               onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
-              className="w-full px-3 py-2 bg-white/[0.05] border border-white/[0.1] rounded-lg text-white"
+              className={`w-full px-3 py-2 border rounded-lg outline-none ${theme === 'light' ? 'bg-white border-gray-200 text-slate-900' : 'bg-white/[0.05] border-white/[0.1] text-white [&::-webkit-calendar-picker-indicator]:invert'}`}
             />
           </div>
           <div>
-            <label className="block text-xs font-bold text-gray-400 mb-2">Até</label>
+            <label className={`block text-xs font-bold mb-2 ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Até</label>
             <input
               type="date"
               value={dateRange.end}
               onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
-              className="w-full px-3 py-2 bg-white/[0.05] border border-white/[0.1] rounded-lg text-white"
+              className={`w-full px-3 py-2 border rounded-lg outline-none ${theme === 'light' ? 'bg-white border-gray-200 text-slate-900' : 'bg-white/[0.05] border-white/[0.1] text-white [&::-webkit-calendar-picker-indicator]:invert'}`}
             />
           </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
-          <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.05]">
-            <p className="text-xs text-gray-400">Receitas</p>
-            <p className="text-lg font-bold text-white"><PrivateValue>{formatCurrency(totalIncome)}</PrivateValue></p>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
+          <div className={`p-4 rounded-xl border ${theme === 'light' ? 'bg-gray-50 border-gray-100' : 'bg-white/[0.02] border-white/[0.05]'}`}>
+            <p className={`text-xs ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Receitas</p>
+            <p className={`text-lg font-bold ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}><PrivateValue>{formatCurrency(totalIncome)}</PrivateValue></p>
           </div>
-          <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.05]">
-            <p className="text-xs text-gray-400">Despesas</p>
-            <p className="text-lg font-bold text-white"><PrivateValue>{formatCurrency(totalExpense)}</PrivateValue></p>
+          <div className={`p-4 rounded-xl border ${theme === 'light' ? 'bg-gray-50 border-gray-100' : 'bg-white/[0.02] border-white/[0.05]'}`}>
+            <p className={`text-xs ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Despesas</p>
+            <p className={`text-lg font-bold ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}><PrivateValue>{formatCurrency(totalExpense)}</PrivateValue></p>
           </div>
-          <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.05]">
-            <p className="text-xs text-gray-400">Pagas</p>
-            <p className="text-lg font-bold text-white">{paidCount}</p>
+          <div className={`p-4 rounded-xl border ${theme === 'light' ? 'bg-gray-50 border-gray-100' : 'bg-white/[0.02] border-white/[0.05]'}`}>
+            <p className={`text-xs ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Pagas</p>
+            <p className={`text-lg font-bold ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>{paidCount}</p>
           </div>
-          <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.05]">
-            <p className="text-xs text-gray-400">Pendentes</p>
-            <p className="text-lg font-bold text-white">{pendingCount}</p>
+          <div className={`p-4 rounded-xl border ${theme === 'light' ? 'bg-gray-50 border-gray-100' : 'bg-white/[0.02] border-white/[0.05]'}`}>
+            <p className={`text-xs ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Pendentes</p>
+            <p className={`text-lg font-bold ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>{pendingCount}</p>
           </div>
         </div>
+        {(dateRange.start || dateRange.end || categoryFilter !== 'Todas' || accountFilter !== 'Todos' || typeFilter !== 'all' || paidFilter !== 'all') && (
+          <button onClick={() => { setTypeFilter('all'); setCategoryFilter('Todas'); setAccountFilter('Todos'); setPaidFilter('all'); setDateRange({ start: '', end: '' }); }} className={`mt-4 text-xs underline ${theme === 'light' ? 'text-teal-700' : 'text-teal-300'}`}>Limpar filtros</button>
+        )}
       </div>
 
-      <div className="bg-white/[0.02] backdrop-blur-md rounded-xl shadow-sm p-6 border border-white/[0.05]">
-        <h3 className="text-lg font-bold text-white mb-4">Fluxo de Caixa (Semestral)</h3>
+      <div className={`backdrop-blur-md rounded-xl shadow-sm p-6 border ${theme === 'light' ? 'bg-white border-gray-200' : 'bg-white/[0.02] border-white/[0.05]'}`}>
+        <h3 className={`text-lg font-bold mb-1 ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>Fluxo de Caixa (6 meses)</h3>
+        <p className={`text-xs mb-4 ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Receitas menos despesas: {(() => { const last = monthlyEvolutionData[monthlyEvolutionData.length - 1]; const prev = monthlyEvolutionData[monthlyEvolutionData.length - 2]; if (!last || !prev) return '—'; const r = monthOverMonth(last.savings, prev.savings); return `${formatCurrency(last.savings)} no último mês${r.pct !== null ? ` (${r.pct >= 0 ? '+' : ''}${r.pct.toFixed(0)}% vs anterior)` : ''}`; })()}</p>
         <div className="h-80">
           <PrivateValue>
             <IncomeExpenseChart data={monthlyEvolutionData} />
@@ -234,17 +209,49 @@ const Reports: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="bg-white/[0.02] backdrop-blur-md rounded-xl shadow-sm p-6 border border-white/[0.05]">
-          <h3 className="text-lg font-bold text-white mb-4">Distribuição de Despesas</h3>
+        <div className={`backdrop-blur-md rounded-xl shadow-sm p-6 border ${theme === 'light' ? 'bg-white border-gray-200' : 'bg-white/[0.02] border-white/[0.05]'}`}>
+          <h3 className={`text-lg font-bold mb-4 ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>Distribuição de Despesas</h3>
           <PrivateValue>
             <ExpensePieChart data={categoryData} />
           </PrivateValue>
         </div>
-        <div className="bg-white/[0.02] backdrop-blur-md rounded-xl shadow-sm p-6 border border-white/[0.05]">
-          <h3 className="text-lg font-bold text-white mb-4">Crescimento Patrimonial</h3>
+        <div className={`backdrop-blur-md rounded-xl shadow-sm p-6 border ${theme === 'light' ? 'bg-white border-gray-200' : 'bg-white/[0.02] border-white/[0.05]'}`}>
+          <h3 className={`text-lg font-bold mb-4 ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>Economia mensal (receita − despesa)</h3>
           <PrivateValue>
             <SavingsBarChart data={savingsData} />
           </PrivateValue>
+        </div>
+      </div>
+
+      <div className={`backdrop-blur-md rounded-xl shadow-sm border overflow-hidden ${theme === 'light' ? 'bg-white border-gray-200' : 'bg-white/[0.02] border-white/[0.05]'}`}>
+        <div className="flex items-center justify-between p-6 pb-3">
+          <h3 className={`text-lg font-bold ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>Prévia ({filteredTransactions.length})</h3>
+          <span className={`text-xs ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Mostrando 20 primeiros</span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead className={theme === 'light' ? 'bg-gray-50 text-slate-500' : 'bg-white/[0.05] text-gray-400'}>
+              <tr>
+                <th className="px-6 py-3">Data</th>
+                <th className="px-6 py-3">Descrição</th>
+                <th className="px-6 py-3">Categoria</th>
+                <th className="px-6 py-3 text-right">Valor</th>
+              </tr>
+            </thead>
+            <tbody className={theme === 'light' ? 'divide-y divide-gray-50' : 'divide-y divide-white/[0.05]'}>
+              {filteredTransactions.slice(0, 20).map(t => (
+                <tr key={t.id}>
+                  <td className={`px-6 py-3 ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>{formatDate(t.date)}</td>
+                  <td className={`px-6 py-3 font-medium ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>{t.description}</td>
+                  <td className={`px-6 py-3 ${theme === 'light' ? 'text-slate-500' : 'text-gray-300'}`}>{t.category}</td>
+                  <td className={`px-6 py-3 text-right font-bold ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}><PrivateValue>{formatCurrency(t.amount)}</PrivateValue></td>
+                </tr>
+              ))}
+              {filteredTransactions.length === 0 && (
+                <tr><td colSpan={4} className={`px-6 py-10 text-center ${theme === 'light' ? 'text-slate-400' : 'text-gray-500'}`}>Nada para exportar com esses filtros.</td></tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 

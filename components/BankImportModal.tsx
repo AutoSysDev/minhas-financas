@@ -1,11 +1,13 @@
 import React, { useState, useMemo } from 'react';
 import { Modal } from './Modal';
 import { Icon } from './Icon';
+import { Dropdown } from './Dropdown';
 import { Account } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { useQueryClient } from '@tanstack/react-query';
 import { formatCurrency, formatDate } from '../utils/helpers';
+import { BANKS } from '../constants';
 
 interface BankImportModalProps {
     isOpen: boolean;
@@ -140,18 +142,23 @@ export const BankImportModal: React.FC<BankImportModalProps> = ({ isOpen, onClos
             {/* Seleção de Conta */}
             <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Conta de Destino (Opcional)</label>
-                <select
+                <Dropdown
+                    options={[
+                        { label: 'Nenhuma (Apenas importar)', value: '' },
+                        ...accounts.map((acc) => {
+                            const bank = BANKS.find(b => b.name === acc.bankName);
+                            return {
+                                label: `${acc.bankName} - ${acc.name}`,
+                                value: acc.id,
+                                logo: bank?.logo,
+                                icon: bank?.icon || acc.icon || 'account_balance'
+                            };
+                        })
+                    ]}
                     value={selectedAccountId}
-                    onChange={(e) => setSelectedAccountId(e.target.value)}
-                    className="w-full bg-white/[0.05] border border-white/[0.1] rounded-xl px-4 py-3 text-white outline-none focus:border-teal-500/50 transition-colors"
-                >
-                    <option value="">Nenhuma (Apenas importar)</option>
-                    {accounts.map((acc) => (
-                        <option key={acc.id} value={acc.id}>
-                            {acc.bankName} - {acc.name}
-                        </option>
-                    ))}
-                </select>
+                    onChange={setSelectedAccountId}
+                    className="w-full"
+                />
             </div>
 
             {/* Upload de Arquivo */}

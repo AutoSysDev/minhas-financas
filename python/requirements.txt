@@ -7,6 +7,10 @@ requests
 pdfplumber
 flask
 flask-cors
-PyPDF2
+pypdf
 openpyxl
 ofxparse
+langchain
+langchain-openai
+langchain-experimental
+tabulate

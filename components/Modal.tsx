@@ -12,9 +12,10 @@ interface ModalProps {
     noPadding?: boolean;
     maxWidth?: string;
     headerActions?: React.ReactNode;
+    headerLeft?: React.ReactNode;
 }
 
-export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, hideHeader = false, noPadding = false, maxWidth = 'max-w-md', headerActions }) => {
+export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, hideHeader = false, noPadding = false, maxWidth = 'max-w-md', headerActions, headerLeft }) => {
     const { theme } = useTheme();
     if (!isOpen) return null;
 
@@ -46,7 +47,10 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, 
                         ? 'bg-gray-50 border-gray-100'
                         : 'bg-white/[0.02] border-white/[0.05]'
                         }`}>
-                        {title && <h2 className={`text-lg font-bold tracking-tight transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>{title}</h2>}
+                        <div className="flex items-center gap-3">
+                            {headerLeft}
+                            {title && <h2 className={`text-lg font-bold tracking-tight transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>{title}</h2>}
+                        </div>
                         <div className="flex items-center gap-2 ml-auto">
                             {headerActions}
                             <button

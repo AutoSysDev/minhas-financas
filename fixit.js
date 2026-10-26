@@ -1,0 +1,1 @@
+const fs=require('fs');const p='C:\monelyfinance\components\Settings\ProfileTab.tsx';let c=fs.readFileSync(p,'utf8');c=c.replace(//g,'').replace(/\\/g,'\').replace(/\./g,'.').replace(/;/g,';');fs.writeFileSync(p,c,'utf8');console.log('Fixed');  

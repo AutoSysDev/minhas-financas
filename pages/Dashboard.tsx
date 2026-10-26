@@ -15,6 +15,9 @@ import { getAIAnalysis } from '../services/aiService';
 import { AIAnalysisModal } from '../components/AIAnalysisModal';
 import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../context/ToastContext';
+import { useInvestorProfile } from '../context/InvestorProfileContext';
+import { useMarketData } from '../hooks/useMarketData';
+import { MarketGrid, MarketChart, MarketSkeleton, InvestorLevelBadge } from '../components/Market';
 // SharedViewToggle removed
 
 // Componente Sparkline (Mini Gráfico)
@@ -44,16 +47,21 @@ const Sparkline: React.FC<{ data: number[], color: string }> = ({ data, color })
 };
 
 const Dashboard: React.FC = () => {
-  const { accounts, recalculateBalances, investments, loading } = useFinance();
+  const { accounts, recalculateBalances, investments, loading, categories } = useFinance();
   const { data: transactionsData, isLoading: isLoadingTransactions } = useTransactions();
   const { theme } = useTheme();
   const { toast } = useToast();
+  const { profile, isLoaded: profileLoaded } = useInvestorProfile();
   const transactions = transactionsData || [];
 
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
+
+  // Market Data Hook
+  const investorLevel = profile?.level || 'intermediate';
+  const { data: marketData, status: marketStatus, errors: marketErrors, refetch: refetchMarket } = useMarketData(investorLevel);
 
 
   const selectedMonth = currentDate.getMonth();
@@ -108,7 +116,9 @@ const Dashboard: React.FC = () => {
 
   // Patrimônio Total (saldo acumulado até o mês selecionado + investimentos)
   const investmentsBalance = getInvestmentsTotalUntil(investments, selectedYear, selectedMonth);
-  const accountsCumulativeBalance = getTotalCumulativeBalance(transactions, accounts, selectedYear, selectedMonth);
+  // Filter accounts that should be included in the total
+  const activeAccounts = accounts.filter(a => !a.ignoreInTotal);
+  const accountsCumulativeBalance = getTotalCumulativeBalance(transactions, activeAccounts, selectedYear, selectedMonth);
   const totalPatrimony = accountsCumulativeBalance + investmentsBalance;
 
   // Filtro de transações do mês (para gráficos e categorias)
@@ -119,7 +129,7 @@ const Dashboard: React.FC = () => {
   const hasMonthlyData = monthlyTransactions.length > 0;
   const prevDate = new Date(selectedYear, selectedMonth, 1);
   prevDate.setMonth(prevDate.getMonth() - 1);
-  const startOfMonthBalance = getTotalCumulativeBalance(transactions, accounts, prevDate.getFullYear(), prevDate.getMonth());
+  const startOfMonthBalance = getTotalCumulativeBalance(transactions, activeAccounts, prevDate.getFullYear(), prevDate.getMonth());
 
   const totalTransfers = monthlyTransactions
     .filter(t => t.type === TransactionType.TRANSFER)
@@ -127,22 +137,8 @@ const Dashboard: React.FC = () => {
 
   const referenceDate = isCurrentMonth ? new Date() : new Date(selectedYear, selectedMonth + 1, 0);
 
-  const handleAIAnalysis = async () => {
-    try {
-      setIsAIModalOpen(true);
-      setIsAnalyzing(true);
-
-      const monthName = currentDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-      const result = await getAIAnalysis(monthlyTransactions, monthName, totalPatrimony);
-
-      setAiAnalysis(result);
-    } catch (error: any) {
-      console.error('AI Analysis Error:', error);
-      toast.error(error.message || 'Erro ao realizar análise com IA');
-      setIsAIModalOpen(false);
-    } finally {
-      setIsAnalyzing(false);
-    }
+  const handleAIAnalysis = () => {
+    setIsAIModalOpen(true);
   };
 
   const last7DaysExpenses = Array.from({ length: 7 }).map((_, i) => {
@@ -166,30 +162,31 @@ const Dashboard: React.FC = () => {
 
   const sparklineData = last7DaysExpenses.some(v => v > 0) ? last7DaysExpenses : [0, 0, 0, 0, 0, 0, 0];
 
-  // --- 4. Dados para o Gráfico de Pizza (Categorias) ---
-  const categoryExpenses = monthlyTransactions
-    .filter(t => t.type === TransactionType.EXPENSE)
-    .reduce((acc, t) => {
-      const category = t.category || 'Outros';
-      acc[category] = (acc[category] || 0) + t.amount;
-      return acc;
-    }, {} as Record<string, number>);
-
-  const CATEGORY_COLORS = ['#137fec', '#16a34a', '#820ad1', '#ff7a00', '#ef4444', '#6b7280', '#eab308', '#db2777'];
-
-  const categoryData = Object.entries(categoryExpenses)
-    .map(([name, value]) => ({ name, value: value as number, color: '#000000' }))
-    .filter(item => (item.value as number) > 0)
-    .sort((a, b) => (b.value as number) - (a.value as number))
-    .slice(0, 5);
-
-  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
-  categoryData.forEach((item, index) => {
-    item.color = COLORS[index % COLORS.length];
-  }); // Top 5 categorias
+  // --- 4. Dados para o Gráfico de Pizza (Categorias) — cor real + Outros ---
+  const categoryData = useMemo(() => {
+    const totals: Record<string, number> = {};
+    monthlyTransactions
+      .filter(t => t.type === TransactionType.EXPENSE)
+      .forEach(t => {
+        const key = t.category || 'Outros';
+        totals[key] = (totals[key] || 0) + Number(t.amount);
+      });
+    const sorted = Object.entries(totals)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+    const head = sorted.slice(0, 4);
+    const tail = sorted.slice(4);
+    if (tail.length > 0) head.push({ name: 'Outros', value: tail.reduce((s, x) => s + x.value, 0) });
+    const palette = ['#14b8a6', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444'];
+    return head.filter(x => x.value > 0).map((x, i) => {
+      if (x.name === 'Outros') return { ...x, color: '#6b7280' };
+      const found = categories.find(c => c.name === x.name);
+      return { ...x, color: found?.color || palette[i % palette.length] };
+    });
+  }, [monthlyTransactions, categories]);
 
   // --- 5. Dados para o Gráfico de Evolução (Últimos 6 meses) ---
-  const monthlyEvolutionData = Array.from({ length: 6 }).map((_, i) => {
+  const monthlyEvolutionData = useMemo(() => Array.from({ length: 6 }).map((_, i) => {
     const d = new Date(currentDate);
     d.setMonth(currentDate.getMonth() - (5 - i));
     const month = d.getMonth();
@@ -214,7 +211,13 @@ const Dashboard: React.FC = () => {
       income,
       expense
     };
-  });
+  }), [transactions, currentDate]);
+
+  const upcomingBills = useMemo(() => transactions
+    .filter(t => t.type === TransactionType.EXPENSE && !t.isPaid)
+    .map(t => ({ ...t, _d: getTransactionDate(t.date) }))
+    .sort((a, b) => a._d.getTime() - b._d.getTime())
+    .slice(0, 5), [transactions]);
 
   if (loading || isLoadingTransactions) {
     return <DashboardSkeleton />;
@@ -229,7 +232,16 @@ const Dashboard: React.FC = () => {
           <h1 className={`text-3xl md:text-4xl font-black leading-tight tracking-[-0.033em] transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>Dashboard</h1>
           <div className="flex items-center gap-2">
             <p className={`mt-1 text-sm transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Visão geral do seu patrimônio.</p>
-            <button onClick={recalculateBalances} className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${theme === 'light' ? 'bg-gray-100 hover:bg-gray-200 text-slate-500 border-gray-200' : 'bg-white/5 hover:bg-white/10 text-gray-500 border-white/5'}`} title="Recalcular Saldos">
+            <button
+              onClick={async () => {
+                try {
+                  await recalculateBalances();
+                  toast.success('Saldos atualizados!');
+                } catch (e: any) {
+                  toast.error('Não foi possível atualizar.');
+                }
+              }}
+              className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${theme === 'light' ? 'bg-gray-100 hover:bg-gray-200 text-slate-500 border-gray-200' : 'bg-white/5 hover:bg-white/10 text-gray-500 border-white/5'}`} title="Recalcular Saldos">
               <Icon name="refresh" className="text-xs" />
             </button>
           </div>
@@ -238,19 +250,18 @@ const Dashboard: React.FC = () => {
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <button
             onClick={handleAIAnalysis}
-            disabled={isAnalyzing}
-            className={`flex items-center justify-center gap-2 px-4 py-2 rounded-xl transition-all group disabled:opacity-50 disabled:cursor-not-allowed ${theme === 'light'
+            className={`flex items-center justify-center gap-2 px-4 py-2 rounded-xl transition-all group ${theme === 'light'
               ? 'bg-teal-600 hover:bg-teal-700 shadow-md shadow-teal-600/20'
               : 'bg-teal-500/10 hover:bg-teal-500/20 border border-teal-500/20'
               }`}
           >
             <Icon
               name="auto_awesome"
-              className={`text-sm group-hover:rotate-12 transition-transform ${isAnalyzing ? 'animate-spin' : ''} ${theme === 'light' ? 'text-white' : 'text-teal-400'
+              className={`text-sm group-hover:rotate-12 transition-transform ${theme === 'light' ? 'text-white' : 'text-teal-400'
                 }`}
             />
             <span className={`text-xs font-bold uppercase tracking-wider ${theme === 'light' ? 'text-white' : 'text-white'}`}>
-              {isAnalyzing ? 'Analisando...' : 'Análise Financeira com IA'}
+              Análise Financeira com IA
             </span>
           </button>
 
@@ -275,7 +286,7 @@ const Dashboard: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
 
           {/* Card de Saldo Geral */}
-          <div className={`backdrop-blur-md rounded-xl p-4 shadow-lg border flex flex-col justify-between min-h-[100px] transition-all duration-300 ${theme === 'light'
+          <div className={`backdrop-blur-md sm:rounded-xl rounded-lg sm:p-4 p-3 shadow-lg border flex flex-col justify-between sm:min-h-[100px] min-h-[80px] transition-all duration-300 ${theme === 'light'
             ? 'bg-white border-gray-200 shadow-sm'
             : 'bg-gradient-to-br from-teal-900/80 to-blue-900/80 border-white/10'
             }`}>
@@ -298,12 +309,12 @@ const Dashboard: React.FC = () => {
           </div>
 
           {/* Cards das Contas Individuais - Saldo Atual */}
-          {accounts.map(acc => (
+          {accounts.filter(acc => acc.showInSummary !== false).map(acc => (
             <div
               key={acc.id}
-              className={`backdrop-blur-md border rounded-xl p-4 shadow-sm flex items-center justify-between gap-4 transition-all group ${theme === 'light'
+              className={`backdrop-blur-md border sm:rounded-xl rounded-lg sm:p-4 p-3 shadow-sm flex items-center justify-between gap-4 transition-all group ${theme === 'light'
                 ? 'bg-white border-gray-200 hover:bg-gray-50 hover:border-teal-500/30'
-                : 'bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.04] hover:border-teal-500/30'
+                : 'bg-surface-glass border-border-glass hover:bg-white/[0.04] hover:border-teal-500/30'
                 }`}
             >
               <div className="flex items-center gap-3 min-w-0">
@@ -317,19 +328,31 @@ const Dashboard: React.FC = () => {
                   })()}
                 </div>
                 <div className="min-w-0">
-                  <p className={`font-bold truncate text-sm transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>{acc.name}</p>
-                  <p className={`text-[10px] truncate uppercase tracking-wide transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-500'}`}>{acc.bankName}</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className={`font-bold truncate text-sm transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>{acc.name}</p>
+                    {acc.isDefaultForDebit && (
+                      <Icon name="check_circle" className="text-[10px] text-teal-500" title="Conta Padrão" />
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <p className={`text-[10px] truncate uppercase tracking-wide transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-500'}`}>{acc.bankName}</p>
+                    {acc.category && (
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${theme === 'light' ? 'bg-gray-100 text-gray-500' : 'bg-white/10 text-gray-400'}`}>
+                        {acc.category}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
               <p className={`text-base font-bold whitespace-nowrap transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
-                <PrivateValue>{formatCurrency(getAccountCumulativeBalance(transactions, acc.id, selectedYear, selectedMonth))}</PrivateValue>
+                <PrivateValue>{formatCurrency(getAccountCumulativeBalance(transactions, acc, selectedYear, selectedMonth))}</PrivateValue>
               </p>
             </div>
           ))}
 
-          <Link to="/accounts" className={`flex items-center justify-center gap-2 border-2 border-dashed rounded-xl cursor-pointer transition-colors p-4 min-h-[80px] group ${theme === 'light'
+          <Link to="/accounts" className={`flex items-center justify-center gap-2 border-2 border-dashed sm:rounded-xl rounded-lg cursor-pointer transition-colors sm:p-4 p-3 sm:min-h-[80px] min-h-[60px] group ${theme === 'light'
             ? 'bg-white border-gray-200 hover:bg-gray-50 hover:border-teal-500/30'
-            : 'bg-white/[0.01] border-white/[0.05] hover:bg-white/[0.03] hover:border-teal-500/30'
+            : 'bg-white/[0.01] border-border-glass hover:bg-white/[0.03] hover:border-teal-500/30'
             }`}>
             <div className={`size-8 rounded-full flex items-center justify-center shadow-sm border transition-colors ${theme === 'light'
               ? 'bg-gray-100 border-gray-200 group-hover:bg-teal-500/20 group-hover:text-teal-600'
@@ -345,16 +368,16 @@ const Dashboard: React.FC = () => {
       {/* Seção 2: Visão Geral do Mês (Fluxo Compacto) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
         {/* Saldo Total (Repetido para contexto do grid, mas com foco no mês) */}
-        <div className={`backdrop-blur-md rounded-2xl p-6 border shadow-lg relative overflow-hidden group transition-all duration-300 ${theme === 'light'
+        <div className={`backdrop-blur-md sm:rounded-2xl rounded-xl sm:p-6 p-4 border shadow-lg relative overflow-hidden group transition-all duration-300 ${theme === 'light'
           ? 'bg-white border-gray-200 shadow-sm hover:bg-gray-50'
-          : 'bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.04]'
+          : 'bg-surface-glass border-border-glass hover:bg-white/[0.04]'
           }`}>
           <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
             <Icon name="account_balance_wallet" className={`text-6xl ${theme === 'light' ? 'text-slate-900' : 'text-white'}`} />
           </div>
           <div className="relative z-10">
             <p className={`text-sm font-medium mb-1 transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Saldo Atual</p>
-            <h3 className={`text-3xl font-bold tracking-tight transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+            <h3 className={`sm:text-3xl text-2xl font-bold tracking-tight transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
               <PrivateValue>{formatCurrency(accountsCumulativeBalance)}</PrivateValue>
             </h3>
             <div className="mt-4 flex items-center gap-2">
@@ -375,7 +398,7 @@ const Dashboard: React.FC = () => {
 
         {/* Saldo Previsto (NOVO) */}
         <div
-          className={`backdrop-blur-md rounded-2xl p-6 border shadow-lg relative overflow-hidden group transition-all duration-300 cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-400/40 ${theme === 'light'
+          className={`backdrop-blur-md sm:rounded-2xl rounded-xl sm:p-6 p-4 border shadow-lg relative overflow-hidden group transition-all duration-300 cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-400/40 ${theme === 'light'
             ? 'bg-white border-indigo-100 shadow-sm hover:bg-indigo-50/30'
             : 'bg-gradient-to-br from-indigo-900/20 to-purple-900/20 border-indigo-500/20 hover:bg-indigo-500/10 hover:border-indigo-400/40'
             }`}
@@ -391,7 +414,7 @@ const Dashboard: React.FC = () => {
           </div>
           <div className="relative z-10">
             <p className={`text-sm font-medium mb-1 transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-indigo-200'}`}>Saldo Previsto</p>
-            <h3 className={`text-3xl font-bold tracking-tight transition-colors ${theme === 'light' ? 'text-indigo-600' : 'text-white'}`}>
+            <h3 className={`sm:text-3xl text-2xl font-bold tracking-tight transition-colors ${theme === 'light' ? 'text-indigo-600' : 'text-white'}`}>
               <PrivateValue>{formatCurrency(predictedBalanceDisplay)}</PrivateValue>
             </h3>
             {isForecastMounted && (
@@ -429,16 +452,16 @@ const Dashboard: React.FC = () => {
         </div>
 
         {/* Receitas */}
-        <div className={`backdrop-blur-md rounded-2xl p-6 border shadow-lg relative overflow-hidden group transition-all duration-300 ${theme === 'light'
+        <div className={`backdrop-blur-md sm:rounded-2xl rounded-xl sm:p-6 p-4 border shadow-lg relative overflow-hidden group transition-all duration-300 ${theme === 'light'
           ? 'bg-white border-gray-200 shadow-sm hover:bg-gray-50'
-          : 'bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.04]'
+          : 'bg-surface-glass border-border-glass hover:bg-white/[0.04]'
           }`}>
           <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
             <Icon name="arrow_upward" className="text-6xl text-green-400" />
           </div>
           <div className="relative z-10">
             <p className={`text-sm font-medium mb-1 transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Receitas (Mês)</p>
-            <h3 className={`text-3xl font-bold tracking-tight transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+            <h3 className={`sm:text-3xl text-2xl font-bold tracking-tight transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
               <PrivateValue>{formatCurrency(totalIncome)}</PrivateValue>
             </h3>
             <div className={`mt-4 flex items-center gap-2 text-xs font-medium w-fit px-2 py-1 rounded-lg transition-colors ${theme === 'light' ? 'text-green-700 bg-green-50' : 'text-green-400 bg-green-400/10'
@@ -450,16 +473,16 @@ const Dashboard: React.FC = () => {
         </div>
 
         {/* Despesas */}
-        <div className={`backdrop-blur-md rounded-2xl p-6 border shadow-lg relative overflow-hidden group transition-all duration-300 ${theme === 'light'
+        <div className={`backdrop-blur-md sm:rounded-2xl rounded-xl sm:p-6 p-4 border shadow-lg relative overflow-hidden group transition-all duration-300 ${theme === 'light'
           ? 'bg-white border-gray-200 shadow-sm hover:bg-gray-50'
-          : 'bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.04]'
+          : 'bg-surface-glass border-border-glass hover:bg-white/[0.04]'
           }`}>
           <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
             <Icon name="arrow_downward" className="text-6xl text-red-400" />
           </div>
           <div className="relative z-10">
             <p className={`text-sm font-medium mb-1 transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Despesas (Mês)</p>
-            <h3 className={`text-3xl font-bold tracking-tight transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+            <h3 className={`sm:text-3xl text-2xl font-bold tracking-tight transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
               <PrivateValue>{formatCurrency(totalExpense)}</PrivateValue>
             </h3>
             <div className={`mt-4 flex items-center gap-2 text-xs font-medium w-fit px-2 py-1 rounded-lg transition-colors ${theme === 'light' ? 'text-red-700 bg-red-50' : 'text-red-400 bg-red-400/10'
@@ -471,16 +494,62 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Seção 3: Gráficos e Acesso Rápido */}
+      {/* Seção 3: Mercado & Índices (NOVA - Adaptativa) */}
+      <section aria-labelledby="market-heading" className="animate-fade-in">
+        <div className="flex items-center justify-between mb-4">
+          <h2 id="market-heading" className="text-lg font-bold">Mercado & Índices</h2>
+          <InvestorLevelBadge level={investorLevel} size="sm" />
+        </div>
+        
+        {marketStatus === 'loading' ? (
+          <MarketSkeleton investorLevel={investorLevel} />
+        ) : marketStatus === 'error' ? (
+          <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+            <Icon name="wifi_off" className="size-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
+            <p>Erro ao carregar dados de mercado</p>
+            <button 
+              onClick={refetchMarket}
+              className="mt-2 text-xs font-bold text-teal-600 dark:text-teal-400 hover:underline"
+            >
+              Tentar novamente
+            </button>
+          </div>
+        ) : (
+          <>
+            <MarketGrid
+              data={marketData}
+              investorLevel={investorLevel}
+              errors={marketErrors}
+              onRetryAsset={refetchMarket}
+            />
+            
+            {investorLevel !== 'beginner' && marketData && (
+              <div className="mt-5">
+                <MarketChart 
+                  data={marketData} 
+                  defaultTab={investorLevel === 'advanced' ? 'crypto' : 'fx'}
+                  investorLevel={investorLevel}
+                />
+              </div>
+            )}
+          </>
+        )}
+      </section>
+
+      {/* Seção 4: Gráficos e Acesso Rápido (renumerada) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Gráfico de Pizza */}
-        <div className={`backdrop-blur-md rounded-xl shadow-sm p-5 border transition-all duration-300 ${theme === 'light' ? 'bg-white border-gray-200 shadow-sm' : 'bg-white/[0.02] border-white/[0.05]'
+        <div className={`backdrop-blur-md rounded-xl shadow-sm p-5 border transition-all duration-300 ${theme === 'light' ? 'bg-white border-gray-200 shadow-sm' : 'bg-surface-glass border-border-glass'
           }`}>
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-1">
             <h3 className={`text-base font-bold transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>Top Categorias</h3>
-            <Link to="/reports" className={`text-[10px] font-bold uppercase transition-colors ${theme === 'light' ? 'text-teal-600 hover:text-teal-700' : 'text-teal-400 hover:text-teal-300'}`}>Ver tudo</Link>
+            <Link to="/statistics" className={`text-[10px] font-bold uppercase transition-colors ${theme === 'light' ? 'text-teal-600 hover:text-teal-700' : 'text-teal-400 hover:text-teal-300'}`}>Ver tudo</Link>
           </div>
+          <p className={`text-xs mb-3 ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Gastos dos últimos 7 dias: <PrivateValue>{formatCurrency(last7DaysExpenses.reduce((s, v) => s + v, 0))}</PrivateValue></p>
           <ExpensePieChart data={categoryData} />
+          <div className="mt-4">
+            <Sparkline data={sparklineData} color="#14b8a6" />
+          </div>
         </div>
 
         {/* Gráfico de Evolução + Acesso Rápido */}
@@ -490,11 +559,29 @@ const Dashboard: React.FC = () => {
             <div className="flex items-start justify-between mb-4">
               <div>
                 <h3 className={`text-base font-bold transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>Fluxo de Caixa</h3>
-                <p className={`text-xs transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Receitas vs Despesas</p>
+                <p className={`text-xs transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Receitas vs Despesas • toque no Saldo Previsto acima para ver detalhes</p>
               </div>
             </div>
-            <div className="h-auto w-full mb-8">
+            <div className="h-auto w-full mb-4">
               <IncomeExpenseChart data={monthlyEvolutionData} />
+            </div>
+            <div className={`rounded-xl border p-4 ${theme === 'light' ? 'bg-gray-50 border-gray-100' : 'bg-white/[0.02] border-white/[0.05]'}`}>
+              <div className="flex items-center justify-between mb-2">
+                <h4 className={`text-sm font-bold ${theme === 'light' ? 'text-slate-800' : 'text-white'}`}>Próximos vencimentos</h4>
+                <Link to="/transactions" className="text-[11px] font-bold text-teal-500">Ver todas</Link>
+              </div>
+              {upcomingBills.length === 0 ? (
+                <p className={`text-xs ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Nada pendente. Tudo em dia!</p>
+              ) : (
+                <div className="space-y-2">
+                  {upcomingBills.map(t => (
+                    <div key={t.id} className="flex items-center justify-between text-sm">
+                      <span className={`truncate ${theme === 'light' ? 'text-slate-700' : 'text-gray-200'}`}>{t.description} • {t._d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</span>
+                      <span className={`font-bold ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}><PrivateValue>{formatCurrency(t.amount)}</PrivateValue></span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
@@ -512,7 +599,7 @@ const Dashboard: React.FC = () => {
 
             <Link to="/invoice" className={`flex items-center gap-3 p-3 border rounded-xl transition-all group ${theme === 'light'
               ? 'bg-white border-gray-200 shadow-sm hover:bg-gray-50'
-              : 'bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.05] hover:border-white/10'
+              : 'bg-surface-glass border-border-glass hover:bg-white/[0.05] hover:border-white/10'
               }`}>
               <div className={`p-1.5 rounded-lg transition-colors ${theme === 'light' ? 'bg-yellow-500/10 text-yellow-600' : 'bg-yellow-500/10 text-yellow-500 group-hover:bg-yellow-500/20'}`}>
                 <Icon name="receipt" className="text-lg" />
@@ -522,7 +609,7 @@ const Dashboard: React.FC = () => {
 
             <Link to="/budgets" className={`flex items-center gap-3 p-3 border rounded-xl transition-all group ${theme === 'light'
               ? 'bg-white border-gray-200 shadow-sm hover:bg-gray-50'
-              : 'bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.05] hover:border-white/10'
+              : 'bg-surface-glass border-border-glass hover:bg-white/[0.05] hover:border-white/10'
               }`}>
               <div className={`p-1.5 rounded-lg transition-colors ${theme === 'light' ? 'bg-purple-500/10 text-purple-600' : 'bg-purple-500/10 text-purple-500 group-hover:bg-purple-500/20'}`}>
                 <Icon name="pie_chart" className="text-lg" />
@@ -535,8 +622,8 @@ const Dashboard: React.FC = () => {
       <AIAnalysisModal
         isOpen={isAIModalOpen}
         onClose={() => setIsAIModalOpen(false)}
-        analysis={aiAnalysis}
-        isLoading={isAnalyzing}
+        transactions={monthlyTransactions}
+        monthName={periodLabel}
       />
     </div>
   );

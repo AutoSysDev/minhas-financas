@@ -57,7 +57,15 @@ export const financeService = {
             logoText: a.logo_text,
             accountNumber: a.account_number,
             icon: a.icon,
-            defaultCardId: a.default_card_id
+            defaultCardId: a.default_card_id,
+            category: a.category,
+            isDefaultForDebit: a.is_default_for_debit,
+            showInSummary: a.show_in_summary,
+            ignoreInTotal: a.ignore_in_total,
+            overdraftLimit: Number(a.overdraft_limit || 0),
+            overdraftInterestRate: Number(a.overdraft_interest_rate || 0),
+            overdraftUsed: Number(a.overdraft_used || 0),
+            notes: a.notes
         }));
     },
 
@@ -120,7 +128,8 @@ export const financeService = {
             deadline: g.deadline,
             icon: g.icon,
             colorClass: g.color_class,
-            textClass: g.text_class
+            textClass: g.text_class,
+            archived: g.archived
         }));
     },
 
@@ -264,7 +273,8 @@ export const financeService = {
             deadline: goal.deadline,
             icon: goal.icon,
             color_class: goal.colorClass,
-            text_class: goal.textClass
+            text_class: goal.textClass,
+            archived: goal.archived || false
         });
         if (error) throw error;
     },
@@ -278,6 +288,7 @@ export const financeService = {
         if (updates.icon !== undefined) dbUpdates.icon = updates.icon;
         if (updates.colorClass !== undefined) dbUpdates.color_class = updates.colorClass;
         if (updates.textClass !== undefined) dbUpdates.text_class = updates.textClass;
+        if (updates.archived !== undefined) dbUpdates.archived = updates.archived;
 
         const { error } = await supabase.from('goals').update(dbUpdates).eq('id', id);
         if (error) throw error;
