@@ -77,7 +77,7 @@ export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
             )}
 
             {/* Container do FAB - Hide on mobile when modal is open */}
-            <div className={`fixed bottom-6 right-6 flex flex-col items-end gap-3 transition-all duration-300 pointer-events-none ${isAnyModalOpen
+            <div className={`fixed bottom-safe right-safe flex flex-col items-end gap-3 transition-all duration-300 pointer-events-none ${isAnyModalOpen
                 ? 'md:z-50 z-[-1] md:opacity-100 opacity-0'
                 : 'z-50 opacity-100'
                 }`}>

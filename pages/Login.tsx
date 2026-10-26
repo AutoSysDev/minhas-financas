@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
 import { useNavigate } from 'react-router-dom';
 import { Icon } from '../components/Icon';
+import { InstallPrompt } from '../src/components/InstallPrompt';
 import { useToast } from '../context/ToastContext';
 
 
@@ -119,7 +120,7 @@ const Login: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen w-full flex items-center justify-center relative overflow-hidden bg-[#0a0e13] font-display selection:bg-teal-500/30 selection:text-teal-200">
+        <div className="min-h-dvh-safe w-full flex items-center justify-center relative overflow-hidden bg-[#0a0e13] font-display selection:bg-teal-500/30 selection:text-teal-200 px-safe pb-safe">
 
             {/* 1. Fundo: Mesh Gradient + Noise */}
             <div className="absolute inset-0 z-0">
@@ -130,40 +131,40 @@ const Login: React.FC = () => {
                 <div className="absolute inset-0 bg-[linear-gradient(to_right,#2dd4bf15_1px,transparent_1px),linear-gradient(to_bottom,#2dd4bf15_1px,transparent_1px)] bg-[size:32px_32px]"></div>
                 <div className="absolute inset-0 bg-[radial-gradient(circle_600px_at_50%_50%,transparent,#0a0e13)]"></div>
 
-                {/* Enhanced Mesh Gradients - Much More Visible */}
-                <div className="absolute top-[-10%] left-[-5%] w-[60vw] h-[60vw] md:w-[50vw] md:h-[50vw] bg-teal-500/25 rounded-full blur-[100px] animate-pulse" style={{ animationDuration: '6s' }}></div>
-                <div className="absolute bottom-[-10%] right-[-5%] w-[55vw] h-[55vw] md:w-[45vw] md:h-[45vw] bg-blue-500/25 rounded-full blur-[90px] animate-pulse" style={{ animationDuration: '8s', animationDelay: '1s' }}></div>
-                <div className="absolute top-[30%] left-[20%] w-[35vw] h-[35vw] md:w-[30vw] md:h-[30vw] bg-cyan-500/15 rounded-full blur-[70px] animate-pulse" style={{ animationDuration: '10s', animationDelay: '2s' }}></div>
+                {/* Mesh suave — animação apenas em telas maiores (custo de GPU no mobile) */}
+                <div className="absolute top-[-10%] left-[-5%] w-[60vw] h-[60vw] md:w-[50vw] md:h-[50vw] bg-teal-500/25 rounded-full blur-[80px] md:blur-[100px] md:animate-pulse will-change-transform" style={{ animationDuration: '6s' }}></div>
+                <div className="absolute bottom-[-10%] right-[-5%] w-[55vw] h-[55vw] md:w-[45vw] md:h-[45vw] bg-blue-500/25 rounded-full blur-[70px] md:blur-[90px] md:animate-pulse will-change-transform" style={{ animationDuration: '8s', animationDelay: '1s' }}></div>
+                <div className="hidden sm:block absolute top-[30%] left-[20%] w-[35vw] h-[35vw] md:w-[30vw] md:h-[30vw] bg-cyan-500/15 rounded-full blur-[70px] md:animate-pulse" style={{ animationDuration: '10s', animationDelay: '2s' }}></div>
 
-                {/* Floating Orbs - More Visible */}
-                <div className="absolute top-[10%] right-[10%] w-48 h-48 md:w-72 md:h-72 bg-teal-400/15 rounded-full blur-3xl animate-pulse" style={{ animationDuration: '7s', animationDelay: '0.5s' }}></div>
-                <div className="absolute bottom-[20%] left-[10%] w-56 h-56 md:w-80 md:h-80 bg-blue-400/15 rounded-full blur-3xl animate-pulse" style={{ animationDuration: '9s', animationDelay: '1.5s' }}></div>
+                {/* Floating Orbs — só no desktop */}
+                <div className="hidden md:block absolute top-[10%] right-[10%] w-48 h-48 md:w-72 md:h-72 bg-teal-400/15 rounded-full blur-3xl animate-pulse" style={{ animationDuration: '7s', animationDelay: '0.5s' }}></div>
+                <div className="hidden md:block absolute bottom-[20%] left-[10%] w-56 h-56 md:w-80 md:h-80 bg-blue-400/15 rounded-full blur-3xl animate-pulse" style={{ animationDuration: '9s', animationDelay: '1.5s' }}></div>
 
                 {/* Accent Lines */}
-                <div className="absolute top-0 left-1/4 w-px h-full bg-gradient-to-b from-transparent via-teal-500/20 to-transparent"></div>
-                <div className="absolute top-0 right-1/4 w-px h-full bg-gradient-to-b from-transparent via-blue-500/20 to-transparent"></div>
+                <div className="hidden sm:block absolute top-0 left-1/4 w-px h-full bg-gradient-to-b from-transparent via-teal-500/20 to-transparent"></div>
+                <div className="hidden sm:block absolute top-0 right-1/4 w-px h-full bg-gradient-to-b from-transparent via-blue-500/20 to-transparent"></div>
 
                 {/* Noise Overlay */}
                 <div className="absolute inset-0 opacity-30 mix-blend-overlay pointer-events-none" style={{ backgroundImage: noiseBg }}></div>
             </div>
 
             {/* 2. Card de Login (Glassmorphism) */}
-            <div className="relative z-10 w-full max-w-[420px] p-6 md:p-8 mx-4">
+            <div className="relative z-10 w-full max-w-[420px] p-4 sm:p-6 md:p-8 mx-auto"> 
                 {/* Ambient Light Top */}
-                <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-[200px] h-[100px] bg-teal-500/10 blur-[50px] rounded-full pointer-events-none"></div>
+                <div className="hidden sm:block absolute -top-20 left-1/2 -translate-x-1/2 w-[200px] h-[100px] bg-teal-500/10 blur-[50px] rounded-full pointer-events-none"></div>
 
-                <div className="backdrop-blur-xl bg-white/[0.03] border border-white/[0.08] rounded-[24px] shadow-2xl ring-1 ring-white/5 overflow-hidden relative group">
+                <div className="backdrop-blur-md md:backdrop-blur-xl bg-white/[0.03] border border-white/[0.08] rounded-[24px] shadow-2xl ring-1 ring-white/5 overflow-hidden relative group">
 
                     {/* Soft Edge Light */}
                     <div className="absolute inset-0 rounded-[24px] pointer-events-none shadow-[inset_0_0_0_1px_rgba(255,255,255,0.05)]"></div>
 
-                    <div className="p-8 relative">
+                    <div className="p-5 sm:p-8 relative">
 
                         {/* Branding */}
-                        <div className="flex flex-col items-center mb-8">
-                            <div className="relative mb-6 group/logo">
+                        <div className="flex flex-col items-center mb-6 sm:mb-8">
+                            <div className="relative mb-4 sm:mb-6 group/logo">
                                 {/* Logo Glow */}
-                                <div className="absolute inset-0 bg-teal-500/20 blur-xl rounded-full opacity-0 group-hover/logo:opacity-100 transition-opacity duration-700"></div>
+                                <div className="hidden sm:block absolute inset-0 bg-teal-500/20 blur-xl rounded-full opacity-0 group-hover/logo:opacity-100 transition-opacity duration-700"></div>
 
                                 <div className="relative size-14 rounded-2xl bg-gradient-to-br from-white/10 to-white/5 border border-white/10 flex items-center justify-center shadow-lg backdrop-blur-md overflow-hidden p-2">
                                     <img src="/logo.png" alt="Monely Finance" className="w-full h-full object-contain" />
@@ -211,8 +212,13 @@ const Login: React.FC = () => {
                                                 type="text"
                                                 value={username}
                                                 onChange={(e) => setUsername(e.target.value)}
-                                                className="w-full pl-4 pr-4 py-3.5 bg-white/[0.03] border border-white/[0.08] rounded-xl text-white placeholder-white/20 focus:border-teal-500/50 focus:ring-1 focus:ring-teal-500/50 focus:bg-white/[0.05] outline-none transition-all duration-300 text-sm font-medium"
+                                                className="w-full pl-4 pr-4 py-3.5 bg-white/[0.03] border border-white/[0.08] rounded-xl text-white placeholder-white/20 focus:border-teal-500/50 focus:ring-1 focus:ring-teal-500/50 focus:bg-white/[0.05] outline-none transition-all duration-300 text-base sm:text-sm font-medium"
                                                 placeholder="Seu nome de usuário"
+                                                autoComplete="username"
+                                                autoCapitalize="none"
+                                                autoCorrect="off"
+                                                spellCheck={false}
+                                                enterKeyHint="next"
                                                 required
                                                 disabled={!supabaseAvailable}
                                             />
@@ -235,8 +241,14 @@ const Login: React.FC = () => {
                                             type="text"
                                             value={email}
                                             onChange={(e) => setEmail(e.target.value)}
-                                            className="w-full pl-4 pr-4 py-3.5 bg-white/[0.03] border border-white/[0.08] rounded-xl text-white placeholder-white/20 focus:border-teal-500/50 focus:ring-1 focus:ring-teal-500/50 focus:bg-white/[0.05] outline-none transition-all duration-300 text-sm font-medium"
+                                            className="w-full pl-4 pr-4 py-3.5 bg-white/[0.03] border border-white/[0.08] rounded-xl text-white placeholder-white/20 focus:border-teal-500/50 focus:ring-1 focus:ring-teal-500/50 focus:bg-white/[0.05] outline-none transition-all duration-300 text-base sm:text-sm font-medium"
                                             placeholder="pggabrielone ou exemplo@email.com"
+                                            autoComplete="username"
+                                            inputMode="email"
+                                            autoCapitalize="none"
+                                            autoCorrect="off"
+                                            spellCheck={false}
+                                            enterKeyHint="next"
                                             required
                                             disabled={!supabaseAvailable}
                                         />
@@ -254,8 +266,10 @@ const Login: React.FC = () => {
                                             type="password"
                                             value={password}
                                             onChange={(e) => setPassword(e.target.value)}
-                                            className="w-full pl-4 pr-4 py-3.5 bg-white/[0.03] border border-white/[0.08] rounded-xl text-white placeholder-white/20 focus:border-teal-500/50 focus:ring-1 focus:ring-teal-500/50 focus:bg-white/[0.05] outline-none transition-all duration-300 text-sm font-medium"
+                                            className="w-full pl-4 pr-4 py-3.5 bg-white/[0.03] border border-white/[0.08] rounded-xl text-white placeholder-white/20 focus:border-teal-500/50 focus:ring-1 focus:ring-teal-500/50 focus:bg-white/[0.05] outline-none transition-all duration-300 text-base sm:text-sm font-medium"
                                             placeholder="••••••••"
+                                            autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+                                            enterKeyHint="go"
                                             required
                                             disabled={!supabaseAvailable}
                                         />
@@ -308,6 +322,8 @@ const Login: React.FC = () => {
                                 </button>
                             </p>
                         </div>
+
+                        <InstallPrompt className="mt-6" forceDark />
                     </div>
                 </div>
 

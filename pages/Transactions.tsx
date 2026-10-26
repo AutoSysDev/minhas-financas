@@ -577,7 +577,7 @@ const Transactions: React.FC = () => {
           ? 'bg-white border-gray-200'
           : 'bg-white/[0.02] border-white/[0.05]'
           }`}>
-          <button onClick={() => navigateMonth(-1)} className={`p-2 rounded-lg transition-colors ${theme === 'light' ? 'hover:bg-gray-100 text-slate-500' : 'hover:bg-white/10 text-gray-400 hover:text-white'}`}>
+          <button onClick={() => navigateMonth(-1)} aria-label="Mês anterior" className={`flex items-center justify-center min-h-11 min-w-11 rounded-lg transition-colors ${theme === 'light' ? 'hover:bg-gray-100 text-slate-500' : 'hover:bg-white/10 text-gray-400 hover:text-white'}`}>
             <Icon name="chevron_left" />
           </button>
           <button
@@ -591,7 +591,7 @@ const Transactions: React.FC = () => {
               {currentDate.getFullYear()}
             </span>
           </button>
-          <button onClick={() => navigateMonth(1)} className={`p-2 rounded-lg transition-colors ${theme === 'light' ? 'hover:bg-gray-100 text-slate-500' : 'hover:bg-white/10 text-gray-400 hover:text-white'}`}>
+          <button onClick={() => navigateMonth(1)} aria-label="Próximo mês" className={`flex items-center justify-center min-h-11 min-w-11 rounded-lg transition-colors ${theme === 'light' ? 'hover:bg-gray-100 text-slate-500' : 'hover:bg-white/10 text-gray-400 hover:text-white'}`}>
             <Icon name="chevron_right" />
           </button>
         </div>

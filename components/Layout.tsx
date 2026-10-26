@@ -80,6 +80,29 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   // Ativar agendador de notificações
   useNotificationScheduler();
 
+  // Fecha o menu ao navegar
+  React.useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [location.pathname]);
+
+  // Drawer: trava o scroll do fundo e fecha com Escape
+  React.useEffect(() => {
+    if (!isMobileMenuOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsMobileMenuOpen(false);
+    };
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isMobileMenuOpen]);
+
   const handleUIError = async (error: any) => {
     // Only show toast, do not add persistent notification for UI errors
     toast.error('Erro inesperado na interface. Suas alterações foram preservadas.');
@@ -120,7 +143,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const noiseBg = `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E")`;
 
   return (
-    <div className={`flex h-screen w-full overflow-hidden font-display selection:bg-teal-500/30 selection:text-teal-200 relative transition-colors duration-300 ${theme === 'light' ? 'bg-gray-50' : 'bg-background-main'}`}>
+    <div className={`flex h-dvh-safe w-full overflow-hidden font-display selection:bg-teal-500/30 selection:text-teal-200 relative transition-colors duration-300 ${theme === 'light' ? 'bg-gray-50' : 'bg-background-main'}`}>
 
       {/* GLOBAL BACKGROUND: Mesh Gradient + Noise */}
       <div className="absolute inset-0 z-0 pointer-events-none">
@@ -138,12 +161,15 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       </div>
 
       {/* Sidebar (Glassmorphism) */}
-      <aside className={`
-        fixed md:relative z-50 h-full shrink-0 transform transition-all duration-300 ease-out
+      <aside
+        id="mobile-nav"
+        aria-label="Menu principal"
+        className={`
+        fixed md:relative z-50 h-full shrink-0 max-w-[85vw] transform transition-all duration-300 ease-out
         ${isMobileMenuOpen ? 'translate-x-0 w-64' : '-translate-x-full md:translate-x-0'}
         ${isSidebarCollapsed ? 'md:w-20' : 'md:w-64'}
       `}>
-        <div className={`h-full flex flex-col border-r relative transition-colors duration-300 ${theme === 'light'
+        <div className={`h-full flex flex-col border-r relative transition-colors duration-300 pt-safe pb-safe ${theme === 'light'
           ? 'bg-[#F8FAFC] border-gray-200'
           : 'bg-surface-glass border-border-glass backdrop-blur-xl'
           }`}>
@@ -163,6 +189,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               className={`hidden md:flex items-center justify-center p-1.5 rounded-lg transition-colors ${theme === 'light' ? 'hover:bg-gray-200 text-gray-400 hover:text-gray-600' : 'hover:bg-white/10 text-gray-500 hover:text-gray-300'}`}
             >
               <Icon name={isSidebarCollapsed ? "chevron_right" : "chevron_left"} className="text-xl" />
+            </button>
+
+            <button
+              onClick={() => setIsMobileMenuOpen(false)}
+              aria-label="Fechar menu"
+              className={`md:hidden -mr-2 min-h-11 min-w-11 flex items-center justify-center rounded-lg transition-colors ${theme === 'light' ? 'text-gray-500 hover:bg-gray-200' : 'text-gray-400 hover:bg-white/10 hover:text-white'}`}
+            >
+              <Icon name="close" className="text-xl" />
             </button>
           </div>
 
@@ -204,7 +238,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   to={item.path!}
                   title={isSidebarCollapsed ? item.label : undefined}
                   className={`
-                    flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group
+                    flex items-center gap-3 px-3 min-h-11 rounded-xl text-sm font-medium transition-all group
                     ${isSidebarCollapsed ? 'justify-center' : ''}
                     ${location.pathname === item.path
                       ? 'bg-teal-500/20 text-teal-400 shadow-sm'
@@ -227,14 +261,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           <div className={`p-4 border-t space-y-2 ${theme === 'light' ? 'border-gray-200' : 'border-white/[0.05]'}`}>
             <button
               onClick={toggleTheme}
-              className={`md:hidden w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group ${isUICollapsed ? 'justify-center' : ''} ${theme === 'light' ? 'text-gray-600 hover:bg-gray-100' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
+              className={`md:hidden w-full flex items-center gap-3 px-3 min-h-11 rounded-xl text-sm font-medium transition-all group ${isUICollapsed ? 'justify-center' : ''} ${theme === 'light' ? 'text-gray-600 hover:bg-gray-100' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
             >
               <Icon name={theme === 'light' ? "dark_mode" : "light_mode"} className="text-lg" />
               {!isUICollapsed && (theme === 'light' ? "Modo Escuro" : "Modo Claro")}
             </button>
             <button
               onClick={handleSignOut}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group ${isUICollapsed ? 'justify-center' : ''} ${theme === 'light' ? 'text-gray-600 hover:text-red-500 hover:bg-red-50' : 'text-gray-400 hover:text-red-400 hover:bg-red-500/10'}`}
+              className={`w-full flex items-center gap-3 px-3 min-h-11 rounded-xl text-sm font-medium transition-all group ${isUICollapsed ? 'justify-center' : ''} ${theme === 'light' ? 'text-gray-600 hover:text-red-500 hover:bg-red-50' : 'text-gray-400 hover:text-red-400 hover:bg-red-500/10'}`}
               title={isUICollapsed ? "Sair da conta" : undefined}
             >
               <Icon name="logout" className={`text-lg transition-colors ${theme === 'light' ? 'text-gray-400 group-hover:text-red-500' : 'group-hover:text-red-400'}`} />
@@ -255,26 +289,29 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       {/* Main Content */}
       <main className="flex-1 flex flex-col min-w-0 relative z-10 h-full overflow-hidden">
         {/* Header (Glassmorphism) */}
-        <header className={`h-16 md:h-20 px-4 md:px-8 flex items-center justify-between shrink-0 border-b backdrop-blur-sm transition-colors duration-300 ${theme === 'light' ? 'bg-white/50 border-gray-200' : 'bg-white/[0.01] border-white/[0.05]'}`}>
-          <div className="flex items-center gap-4">
+        <header className={`min-h-16 md:min-h-20 pt-safe px-4 md:px-8 flex items-center justify-between shrink-0 border-b backdrop-blur-sm transition-colors duration-300 ${theme === 'light' ? 'bg-white/50 border-gray-200' : 'bg-white/[0.01] border-white/[0.05]'}`}>
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0">
             <button
               onClick={() => setIsMobileMenuOpen(true)}
-              className={`md:hidden p-2 rounded-lg transition-colors ${theme === 'light' ? 'text-gray-600 hover:bg-gray-100' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
+              aria-label="Abrir menu"
+              aria-expanded={isMobileMenuOpen}
+              aria-controls="mobile-nav"
+              className={`md:hidden -ml-2 min-h-11 min-w-11 flex items-center justify-center rounded-lg transition-colors ${theme === 'light' ? 'text-gray-600 hover:bg-gray-100' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
             >
               <Icon name="menu" className="text-2xl" />
             </button>
 
             {/* Page Title Breadcrumb style */}
-            <div className="flex items-center gap-2 text-sm">
-              <span className={`transition-colors ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`}>Monely</span>
-              <Icon name="chevron_right" className={`${theme === 'light' ? 'text-gray-400' : 'text-gray-600'} text-xs`} />
-              <span className={`font-semibold transition-colors duration-300 ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>
+            <div className="flex items-center gap-2 text-sm min-w-0">
+              <span className={`hidden sm:inline transition-colors ${theme === 'light' ? 'text-gray-500' : 'text-gray-400'}`}>Monely</span>
+              <Icon name="chevron_right" className={`hidden sm:inline ${theme === 'light' ? 'text-gray-400' : 'text-gray-600'} text-xs`} />
+              <span className={`font-semibold truncate transition-colors duration-300 ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>
                 {menuItems.find(i => i.path === location.pathname)?.label || 'Dashboard'}
               </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 md:gap-6">
+          <div className="flex items-center gap-3 md:gap-6 shrink-0">
             {updateAvailable && (
               <button
                 onClick={performUpdate}
@@ -292,15 +329,18 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             )}
             <button
               onClick={toggleTheme}
-              className={`hidden md:block relative p-2 rounded-full transition-all duration-300 group ${theme === 'light' ? 'text-amber-500 bg-amber-500/10 hover:bg-amber-500/20 rotate-12' : 'text-gray-400 hover:text-white hover:bg-white/10 hover:-rotate-12'}`}
+              className={`hidden md:flex items-center justify-center min-h-11 min-w-11 rounded-full transition-all duration-300 group ${theme === 'light' ? 'text-amber-500 bg-amber-500/10 hover:bg-amber-500/20' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
               title={theme === 'light' ? "Modo Escuro" : "Modo Claro"}
+              aria-label={theme === 'light' ? "Ativar modo escuro" : "Ativar modo claro"}
             >
               <Icon name={theme === 'light' ? "light_mode" : "dark_mode"} className="text-xl" />
             </button>
             <button
               onClick={togglePrivacyMode}
-              className={`relative p-2 rounded-full transition-colors group ${isPrivacyMode ? 'text-teal-400 bg-teal-500/10' : theme === 'light' ? 'text-gray-400 hover:text-gray-900 hover:bg-gray-100' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
+              className={`relative flex items-center justify-center min-h-11 min-w-11 rounded-full transition-colors group ${isPrivacyMode ? 'text-teal-400 bg-teal-500/10' : theme === 'light' ? 'text-gray-400 hover:text-gray-900 hover:bg-gray-100' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
               title={isPrivacyMode ? "Mostrar valores" : "Ocultar valores"}
+              aria-label={isPrivacyMode ? "Mostrar valores" : "Ocultar valores"}
+              aria-pressed={isPrivacyMode}
             >
               <Icon name={isPrivacyMode ? "visibility_off" : "visibility"} className="text-xl" />
             </button>
@@ -309,15 +349,15 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         </header>
 
         {/* Scrollable Content Area */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-8 scroll-smooth custom-scrollbar">
+        <div className="flex-1 overflow-y-auto px-4 pt-4 pb-[calc(6rem+var(--safe-bottom))] md:p-8 scroll-smooth custom-scrollbar">
           <div className="max-w-7xl mx-auto">
             <AnimatePresence mode="wait">
               <motion.div
                 key={location.pathname}
-                initial={{ opacity: 0, y: 10, filter: 'blur(4px)' }}
-                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-                exit={{ opacity: 0, y: -10, filter: 'blur(4px)' }}
-                transition={{ duration: 0.25, ease: "easeOut" }}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2, ease: "easeOut" }}
               >
                 <ErrorBoundary onError={handleUIError}>
                   {children || <Outlet />}

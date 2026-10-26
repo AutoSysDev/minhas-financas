@@ -13,7 +13,6 @@ import { InviteModal } from '../components/SharedAccount/InviteModal';
 import { usePrivacy } from '../context/PrivacyContext';
 import { useTheme } from '../context/ThemeContext';
 import { LEGACY_TO_NEW_MAP } from '../constants';
-import { ProfileTab } from '../components/Settings/ProfileTab';
 
 type TabType = 'profile' | 'preferences' | 'categories' | 'notifications' | 'security' | 'subscription' | 'data' | 'shared';
 
@@ -779,7 +778,75 @@ const Settings: React.FC = () => {
           <div className="space-y-6">
 
             {/* Tab: Perfil */}
-            {activeTab === 'profile' && <ProfileTab />}
+            {activeTab === 'profile' && (
+              <div className="space-y-8">
+                <div className="flex flex-col sm:flex-row items-center gap-6 bg-white/[0.02] p-6 rounded-2xl border border-white/[0.05]">
+                  <div className="relative">
+                    <div
+                      className="size-24 rounded-full bg-cover bg-center border-4 border-white/[0.1] shadow-sm relative"
+                      style={{ backgroundImage: `url("${avatarUrl || 'https://lh3.googleusercontent.com/aida-public/AB6AXuDsKIk1DOYzsfGKsBARorNnMPJgb8KjtWgEChlWnMoj9mPOKMa7GeRmMGSanjv3gAwZOXO-814wljVcOvOdwwKQBtGWqWg6gad4RBqSB7XevoqzVwNUSEK1lr804Bbb-nOrL_YYcbeAjcYbPcMiKqRC0Gz59DHu7k9ytK4GQFGnGrWgKhQZTuTCwzwdoCtjdn8qidg_9102kGz_dl03tfwt1cAiLMxgs5Y9I52I2NuQCr1ykPYYe9lUrIPxkX4fA-_N8I6n5ERu-v4'}")` }}
+                    >
+                      {uploading && (
+                        <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center">
+                          <div className="size-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        </div>
+                      )}
+                    </div>
+                    <label className="absolute bottom-0 right-0 p-2 bg-teal-500 text-white rounded-full hover:bg-teal-600 transition-colors shadow-sm border-2 border-[#0f1216] cursor-pointer">
+                      <Icon name="photo_camera" className="text-lg" />
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleAvatarUpload}
+                        className="hidden"
+                        disabled={uploading}
+                      />
+                    </label>
+                  </div>
+                  <div className="text-center sm:text-left">
+                    <h3 className="text-xl font-bold text-white">{user?.user_metadata?.full_name || 'Usuário'}</h3>
+                    <p className="text-sm text-gray-400 mb-3">{user?.email}</p>
+                    {isPremium ? (
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-gradient-to-r from-teal-400 to-blue-500 text-white shadow-sm">
+                        <Icon name="star" className="text-[14px] mr-1" />
+                        Premium
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-white/[0.05] text-gray-300 shadow-sm">
+                        <Icon name="person" className="text-[14px] mr-1" />
+                        Plano Gratuito
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-bold text-gray-300 mb-2">Nome Completo</label>
+                    <input
+                      type="text"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      className="w-full px-4 py-3 rounded-xl border border-white/[0.1] bg-white/[0.05] text-white focus:ring-2 focus:ring-teal-500/50 focus:border-transparent outline-none transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-300 mb-2">E-mail</label>
+                    <input type="email" defaultValue={user?.email || ''} disabled className="w-full px-4 py-3 rounded-xl border border-white/[0.1] bg-white/[0.02] text-gray-500 cursor-not-allowed outline-none transition-all" />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-bold text-gray-300 mb-2">Telefone</label>
+                    <input
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="(00) 00000-0000"
+                      className="w-full px-4 py-3 rounded-xl border border-white/[0.1] bg-white/[0.05] text-white focus:ring-2 focus:ring-teal-500/50 focus:border-transparent outline-none transition-all"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Tab: Preferências */}
             {activeTab === 'preferences' && (

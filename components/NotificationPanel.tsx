@@ -85,7 +85,7 @@ export const NotificationPanel: React.FC = () => {
 
             {/* Panel de notificações */}
             <div
-                className="fixed w-[calc(100vw-2rem)] sm:w-96 max-h-[600px] bg-[#1a1d21] border border-white/[0.1] rounded-xl shadow-2xl z-[9999] flex flex-col animate-fade-in"
+                className="fixed w-[calc(100vw-2rem)] sm:w-96 max-h-[min(600px,calc(100dvh-6rem))] bg-[#1a1d21] border border-white/[0.1] rounded-xl shadow-2xl z-[9999] flex flex-col animate-fade-in overscroll-contain"
                 style={{ top: `${panelPosition.top}px`, right: `${panelPosition.right}px` }}
             >
                 {/* Header */}
@@ -103,13 +103,13 @@ export const NotificationPanel: React.FC = () => {
                         <div className="flex gap-2">
                             <button
                                 onClick={markAllAsRead}
-                                className="flex-1 px-3 py-1.5 text-xs font-medium text-gray-400 hover:text-white hover:bg-white/[0.05] rounded-lg transition-colors"
+                                className="flex-1 px-3 min-h-11 text-xs font-medium text-gray-400 hover:text-white hover:bg-white/[0.05] rounded-lg transition-colors"
                             >
                                 Marcar todas como lidas
                             </button>
                             <button
                                 onClick={clearAll}
-                                className="flex-1 px-3 py-1.5 text-xs font-medium text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors"
+                                className="flex-1 px-3 min-h-11 text-xs font-medium text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors"
                             >
                                 Limpar tudo
                             </button>
@@ -172,7 +172,7 @@ export const NotificationPanel: React.FC = () => {
                                                         e.stopPropagation();
                                                         deleteNotification(notification.id);
                                                     }}
-                                                    className="p-1 text-gray-600 hover:text-red-400 transition-colors"
+                                                    className="-m-2 flex items-center justify-center min-h-11 min-w-11 text-gray-600 hover:text-red-400 transition-colors"
                                                     aria-label="Deletar notificação"
                                                 >
                                                     <Icon name="close" className="text-sm" />
@@ -194,7 +194,7 @@ export const NotificationPanel: React.FC = () => {
                                 navigate('/notifications');
                                 setIsOpen(false);
                             }}
-                            className="w-full px-3 py-2 text-xs font-medium text-gray-400 hover:text-white hover:bg-white/[0.05] rounded-lg transition-colors flex items-center justify-center gap-2"
+                            className="w-full px-3 min-h-11 text-xs font-medium text-gray-400 hover:text-white hover:bg-white/[0.05] rounded-lg transition-colors flex items-center justify-center gap-2"
                         >
                             <Icon name="settings" className="text-base" />
                             Configurar Notificações
@@ -211,7 +211,7 @@ export const NotificationPanel: React.FC = () => {
             <button
                 ref={buttonRef}
                 onClick={() => setIsOpen(!isOpen)}
-                className="relative p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-full transition-colors group"
+                className="relative flex items-center justify-center min-h-11 min-w-11 text-gray-400 hover:text-white hover:bg-white/10 rounded-full transition-colors group"
                 aria-label="Notificações"
             >
                 <Icon name="notifications" className="text-xl" />

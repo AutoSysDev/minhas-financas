@@ -29,6 +29,13 @@
   },
   "exclude": [
     "supabase/functions",
-    "pages/Cards_BACKUP.tsx"
+    "pages/Cards_BACKUP.tsx",
+    "fixit.js",
+    "repro_invoice.js",
+    "test_date.js",
+    "check_db.js",
+    "android",
+    "release",
+    "dist"
   ]
 }
