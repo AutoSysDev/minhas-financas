@@ -12,6 +12,7 @@ import { InvestorProfileProvider } from './context/InvestorProfileContext';
 import { SharedAccountProvider } from './context/SharedAccountContext';
 import { SupermarketProvider } from './context/SupermarketContext';
 import { SplashScreen } from './components/SplashScreen';
+import { PWAStatus } from './src/components/PWAStatus';
 
 // Lazy loading components
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -53,6 +54,7 @@ const App: React.FC = () => {
             <NotificationProvider>
               <UIProvider>
                 <ToastProvider>
+                  <PWAStatus />
                   <SharedAccountProvider>
                     <FinanceProvider>
                       <SupermarketProvider>
