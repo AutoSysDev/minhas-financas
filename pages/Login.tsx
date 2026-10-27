@@ -78,7 +78,14 @@ const Login: React.FC = () => {
                     }).then(() => { }, (err) => console.warn('Erro silencioso ao criar perfil:', err));
                 }
 
-                toast.success('Conta criada! Verifique seu e-mail.');
+                if (data.session) {
+                    // Confirmação de e-mail desativada: a conta já entra autenticada.
+                    toast.success('Conta criada com sucesso!');
+                    navigate('/', { replace: true });
+                } else {
+                    // Projeto com confirmação de e-mail habilitada.
+                    toast.success('Conta criada! Verifique seu e-mail para ativar a conta.');
+                }
             } else {
                 console.log('Solicitando login ao Supabase Auth...');
                 const { data, error: signInError } = await supabase.auth.signInWithPassword({

@@ -12,6 +12,39 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+/**
+ * Sincroniza o status premium com a Edge Function `verify-subscription`.
+ *
+ * Essa sincronização é opcional: `profiles.is_premium` é a fonte de verdade.
+ * Se a função não estiver publicada no projeto (o preflight responde 404 sem
+ * cabeçalhos CORS) ou falhar, a chamada é ignorada silenciosamente e não é
+ * repetida durante a sessão, evitando erros de CORS no console a cada login.
+ */
+let subscriptionSyncUnavailable = false;
+
+/**
+ * A Edge Function `verify-subscription` não está publicada neste projeto.
+ * Chamá-la sem estar publicada gera preflight sem CORS a cada login, então a
+ * sincronização só roda quando habilitada explicitamente no build.
+ */
+const STRIPE_SYNC_ENABLED = import.meta.env.VITE_STRIPE_SYNC_ENABLED === 'true';
+
+const syncPremiumFromStripe = async (): Promise<boolean | null> => {
+    if (!STRIPE_SYNC_ENABLED || subscriptionSyncUnavailable) return null;
+
+    try {
+        const { data, error } = await supabase.functions.invoke('verify-subscription');
+        if (error) {
+            subscriptionSyncUnavailable = true;
+            return null;
+        }
+        return typeof data?.isPremium === 'boolean' ? data.isPremium : null;
+    } catch {
+        subscriptionSyncUnavailable = true;
+        return null;
+    }
+};
+
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [user, setUser] = useState<User | null>(null);
     const [session, setSession] = useState<Session | null>(null);
@@ -54,10 +87,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                                 }
                                 
                                 // Auto-verify subscription status with Stripe to fix any sync issues
-                                supabase.functions.invoke('verify-subscription').then(({ data, error }) => {
-                                    if (error) console.error('Erro na verificação de assinatura:', error);
-                                    if (data?.isPremium !== undefined && mounted) {
-                                        setIsPremium(data.isPremium);
+                                syncPremiumFromStripe().then((premium) => {
+                                    if (premium !== null && mounted) {
+                                        setIsPremium(premium);
                                     }
                                 });
                             }
@@ -90,9 +122,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                         
                         // Verify on auth change (login) too
                         if (event === 'SIGNED_IN') {
-                             supabase.functions.invoke('verify-subscription').then(({ data, error }) => {
-                                if (data?.isPremium !== undefined) {
-                                    setIsPremium(data.isPremium);
+                            syncPremiumFromStripe().then((premium) => {
+                                if (premium !== null) {
+                                    setIsPremium(premium);
                                 }
                             });
                         }

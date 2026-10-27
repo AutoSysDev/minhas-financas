@@ -1,4 +1,4 @@
-﻿components/Market/InvestorLevelBadgeImpl.tsx
+﻿// components/Market/InvestorLevelBadgeImpl.tsx
 // Badge de nível do investidor - Implementation
 
 import React, { useState, useRef, useEffect } from "react";
