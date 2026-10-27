@@ -103,13 +103,13 @@ export const NotificationPanel: React.FC = () => {
                         <div className="flex gap-2">
                             <button
                                 onClick={markAllAsRead}
-                                className="flex-1 px-3 min-h-11 text-xs font-medium text-gray-400 hover:text-white hover:bg-white/[0.05] rounded-lg transition-colors"
+                                className="flex-1 px-3 min-h-11 text-xs font-medium text-gray-400 hover:text-white hover:bg-white/[0.05] rounded-lg transition-colors focus-visible:ring-2 focus-visible:ring-teal-500/50 focus-visible:outline-none"
                             >
                                 Marcar todas como lidas
                             </button>
                             <button
                                 onClick={clearAll}
-                                className="flex-1 px-3 min-h-11 text-xs font-medium text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors"
+                                className="flex-1 px-3 min-h-11 text-xs font-medium text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors focus-visible:ring-2 focus-visible:ring-red-400/50 focus-visible:outline-none"
                             >
                                 Limpar tudo
                             </button>
@@ -172,7 +172,7 @@ export const NotificationPanel: React.FC = () => {
                                                         e.stopPropagation();
                                                         deleteNotification(notification.id);
                                                     }}
-                                                    className="-m-2 flex items-center justify-center min-h-11 min-w-11 text-gray-600 hover:text-red-400 transition-colors"
+                                                    className="-m-2 flex items-center justify-center min-h-11 min-w-11 text-gray-600 hover:text-red-400 transition-colors rounded-lg focus-visible:ring-2 focus-visible:ring-red-400/50 focus-visible:outline-none"
                                                     aria-label="Deletar notificação"
                                                 >
                                                     <Icon name="close" className="text-sm" />
@@ -194,7 +194,7 @@ export const NotificationPanel: React.FC = () => {
                                 navigate('/notifications');
                                 setIsOpen(false);
                             }}
-                            className="w-full px-3 min-h-11 text-xs font-medium text-gray-400 hover:text-white hover:bg-white/[0.05] rounded-lg transition-colors flex items-center justify-center gap-2"
+                            className="w-full px-3 min-h-11 text-xs font-medium text-gray-400 hover:text-white hover:bg-white/[0.05] rounded-lg transition-colors flex items-center justify-center gap-2 focus-visible:ring-2 focus-visible:ring-teal-500/50 focus-visible:outline-none"
                         >
                             <Icon name="settings" className="text-base" />
                             Configurar Notificações
@@ -211,12 +211,12 @@ export const NotificationPanel: React.FC = () => {
             <button
                 ref={buttonRef}
                 onClick={() => setIsOpen(!isOpen)}
-                className="relative flex items-center justify-center min-h-11 min-w-11 text-gray-400 hover:text-white hover:bg-white/10 rounded-full transition-colors group"
+                className="relative flex items-center justify-center min-h-11 min-w-11 text-gray-400 hover:text-white hover:bg-white/10 rounded-full transition-colors group focus-visible:ring-2 focus-visible:ring-teal-500/50 focus-visible:outline-none"
                 aria-label="Notificações"
             >
                 <Icon name="notifications" className="text-xl" />
                 {unreadCount > 0 && (
-                    <span className="absolute top-2 right-2 size-2 bg-red-500 rounded-full border-2 border-[#0f1216] animate-pulse" />
+                    <span className="absolute top-2 right-2 size-2 bg-red-500 rounded-full border-2 border-background-main animate-pulse" />
                 )}
             </button>
 

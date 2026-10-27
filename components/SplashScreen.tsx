@@ -2,7 +2,7 @@ import React from 'react';
 
 export const SplashScreen: React.FC = () => {
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0f1216]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background-main">
             <div className="flex flex-col items-center gap-6 animate-fade-in">
                 <div className="relative size-24 md:size-32">
                     {/* Pulsing Background */}

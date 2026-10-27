@@ -180,9 +180,25 @@ body {
   *,
   *::before,
   *::after {
-    animation-duration: 0.01ms !important;
+    animation-duration: 0.1s !important;
     animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+    transition-duration: 0.1s !important;
     scroll-behavior: auto !important;
+  }
+
+  /* Reduz ou elimina animações espaciais, preserva feedback de estado */
+  .animate-pulse,
+  .animate-spin,
+  .animate-fade-in,
+  .animate-slide-up,
+  .animate-scale-up {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  /* Feedback de toque/clique preservado */
+  *:active {
+    transition-duration: 0.1s !important;
   }
 }

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { Icon } from './Icon';
 import { useAuth } from '../context/AuthContext';
 import { usePrivacy } from '../context/PrivacyContext';
@@ -53,6 +53,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
 }
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
+  const prefersReducedMotion = useReducedMotion();
   const { updateAvailable, performUpdate, downloading, downloadProgress } = useAppUpdate();
   const location = useLocation();
   const navigate = useNavigate();
@@ -152,9 +153,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
         {/* Mesh Gradients */}
         {/* Mesh Gradients - Optimized for Mobile */}
-        <div className={`absolute top-[-20%] left-[-10%] w-[70vw] h-[70vw] rounded-full blur-[80px] md:blur-[120px] md:animate-pulse will-change-transform transition-colors duration-300 ${theme === 'light' ? 'bg-blue-100/40' : 'bg-blue-900/20'}`} style={{ animationDuration: '8s' }}></div>
-        <div className={`absolute bottom-[-20%] right-[-10%] w-[60vw] h-[60vw] rounded-full blur-[60px] md:blur-[100px] md:animate-pulse will-change-transform transition-colors duration-300 ${theme === 'light' ? 'bg-teal-100/40' : 'bg-teal-900/20'}`} style={{ animationDuration: '10s', animationDelay: '1s' }}></div>
-        <div className={`absolute top-[40%] left-[30%] w-[40vw] h-[40vw] rounded-full blur-[50px] md:blur-[80px] md:animate-pulse will-change-transform transition-colors duration-300 ${theme === 'light' ? 'bg-purple-100/20' : 'bg-purple-900/10'}`} style={{ animationDuration: '12s', animationDelay: '2s' }}></div>
+        <div className={`absolute top-[-20%] left-[-10%] w-[70vw] h-[70vw] rounded-full blur-[80px] md:blur-[120px] md:animate-pulse transition-colors duration-300 ${theme === 'light' ? 'bg-blue-100/40' : 'bg-blue-900/20'}`} style={{ animationDuration: '8s' }}></div>
+        <div className={`absolute bottom-[-20%] right-[-10%] w-[60vw] h-[60vw] rounded-full blur-[60px] md:blur-[100px] md:animate-pulse transition-colors duration-300 ${theme === 'light' ? 'bg-teal-100/40' : 'bg-teal-900/20'}`} style={{ animationDuration: '10s', animationDelay: '1s' }}></div>
+        <div className={`absolute top-[40%] left-[30%] w-[40vw] h-[40vw] rounded-full blur-[50px] md:blur-[80px] md:animate-pulse transition-colors duration-300 ${theme === 'light' ? 'bg-purple-100/20' : 'bg-purple-900/10'}`} style={{ animationDuration: '12s', animationDelay: '2s' }}></div>
 
         {/* Noise Overlay */}
         <div className="absolute inset-0 opacity-40 mix-blend-overlay" style={{ backgroundImage: noiseBg }}></div>
@@ -186,7 +187,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
             <button
               onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-              className={`hidden md:flex items-center justify-center p-1.5 rounded-lg transition-colors ${theme === 'light' ? 'hover:bg-gray-200 text-gray-400 hover:text-gray-600' : 'hover:bg-white/10 text-gray-500 hover:text-gray-300'}`}
+              aria-label={isSidebarCollapsed ? "Expandir menu" : "Colapsar menu"}
+              className={`hidden md:flex items-center justify-center p-1.5 rounded-lg transition-colors focus-visible:ring-2 focus-visible:ring-teal-500/50 focus-visible:outline-none ${theme === 'light' ? 'hover:bg-gray-200 text-gray-400 hover:text-gray-600' : 'hover:bg-white/10 text-gray-500 hover:text-gray-300'}`}
             >
               <Icon name={isSidebarCollapsed ? "chevron_right" : "chevron_left"} className="text-xl" />
             </button>
@@ -194,7 +196,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             <button
               onClick={() => setIsMobileMenuOpen(false)}
               aria-label="Fechar menu"
-              className={`md:hidden -mr-2 min-h-11 min-w-11 flex items-center justify-center rounded-lg transition-colors ${theme === 'light' ? 'text-gray-500 hover:bg-gray-200' : 'text-gray-400 hover:bg-white/10 hover:text-white'}`}
+              className={`md:hidden -mr-2 min-h-11 min-w-11 flex items-center justify-center rounded-lg transition-colors focus-visible:ring-2 focus-visible:ring-teal-500/50 focus-visible:outline-none ${theme === 'light' ? 'text-gray-500 hover:bg-gray-200' : 'text-gray-400 hover:bg-white/10 hover:text-white'}`}
             >
               <Icon name="close" className="text-xl" />
             </button>
@@ -204,7 +206,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           <div className={`px-4 mb-6 transition-all duration-300 ${isUICollapsed ? 'flex justify-center' : ''}`}>
             <div className={`p-3 rounded-xl border flex items-center gap-3 transition-all cursor-pointer group ${theme === 'light' ? 'bg-gray-100/50 border-gray-200 hover:bg-gray-100' : 'bg-white/[0.05] border-white/[0.1] hover:bg-white/[0.1]'} ${isUICollapsed ? 'justify-center w-full' : ''}`}>
               <div className="size-7 rounded-full bg-gradient-to-br from-teal-400 to-blue-500 p-[1px] shrink-0">
-                <div className={`w-full h-full rounded-full flex items-center justify-center overflow-hidden ${theme === 'light' ? 'bg-white' : 'bg-[#0f1216]'}`}>
+                <div className={`w-full h-full rounded-full flex items-center justify-center overflow-hidden ${theme === 'light' ? 'bg-white' : 'bg-background-main'}`}>
                   {user?.user_metadata?.avatar_url ? (
                     <img src={user.user_metadata.avatar_url} alt="User" className="w-full h-full object-cover" />
                   ) : (
@@ -261,15 +263,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           <div className={`p-4 border-t space-y-2 ${theme === 'light' ? 'border-gray-200' : 'border-white/[0.05]'}`}>
             <button
               onClick={toggleTheme}
-              className={`md:hidden w-full flex items-center gap-3 px-3 min-h-11 rounded-xl text-sm font-medium transition-all group ${isUICollapsed ? 'justify-center' : ''} ${theme === 'light' ? 'text-gray-600 hover:bg-gray-100' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
+              aria-label={theme === 'light' ? "Ativar modo escuro" : "Ativar modo claro"}
+              className={`md:hidden w-full flex items-center gap-3 px-3 min-h-11 rounded-xl text-sm font-medium transition-all group focus-visible:ring-2 focus-visible:ring-teal-500/50 focus-visible:outline-none ${isUICollapsed ? 'justify-center' : ''} ${theme === 'light' ? 'text-gray-600 hover:bg-gray-100' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
             >
               <Icon name={theme === 'light' ? "dark_mode" : "light_mode"} className="text-lg" />
               {!isUICollapsed && (theme === 'light' ? "Modo Escuro" : "Modo Claro")}
             </button>
             <button
               onClick={handleSignOut}
-              className={`w-full flex items-center gap-3 px-3 min-h-11 rounded-xl text-sm font-medium transition-all group ${isUICollapsed ? 'justify-center' : ''} ${theme === 'light' ? 'text-gray-600 hover:text-red-500 hover:bg-red-50' : 'text-gray-400 hover:text-red-400 hover:bg-red-500/10'}`}
-              title={isUICollapsed ? "Sair da conta" : undefined}
+              aria-label="Sair da conta"
+              className={`w-full flex items-center gap-3 px-3 min-h-11 rounded-xl text-sm font-medium transition-all group focus-visible:ring-2 focus-visible:ring-teal-500/50 focus-visible:outline-none ${isUICollapsed ? 'justify-center' : ''} ${theme === 'light' ? 'text-gray-600 hover:text-red-500 hover:bg-red-50' : 'text-gray-400 hover:text-red-400 hover:bg-red-500/10'}`}
             >
               <Icon name="logout" className={`text-lg transition-colors ${theme === 'light' ? 'text-gray-400 group-hover:text-red-500' : 'group-hover:text-red-400'}`} />
               {!isUICollapsed && "Sair da conta"}
@@ -296,7 +299,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               aria-label="Abrir menu"
               aria-expanded={isMobileMenuOpen}
               aria-controls="mobile-nav"
-              className={`md:hidden -ml-2 min-h-11 min-w-11 flex items-center justify-center rounded-lg transition-colors ${theme === 'light' ? 'text-gray-600 hover:bg-gray-100' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
+              className={`md:hidden -ml-2 min-h-11 min-w-11 flex items-center justify-center rounded-lg transition-colors focus-visible:ring-2 focus-visible:ring-teal-500/50 focus-visible:outline-none ${theme === 'light' ? 'text-gray-600 hover:bg-gray-100' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
             >
               <Icon name="menu" className="text-2xl" />
             </button>
@@ -329,7 +332,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             )}
             <button
               onClick={toggleTheme}
-              className={`hidden md:flex items-center justify-center min-h-11 min-w-11 rounded-full transition-all duration-300 group ${theme === 'light' ? 'text-amber-500 bg-amber-500/10 hover:bg-amber-500/20' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
+              className={`hidden md:flex items-center justify-center min-h-11 min-w-11 rounded-full transition-all duration-300 group focus-visible:ring-2 focus-visible:ring-teal-500/50 focus-visible:outline-none ${theme === 'light' ? 'text-amber-500 bg-amber-500/10 hover:bg-amber-500/20' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
               title={theme === 'light' ? "Modo Escuro" : "Modo Claro"}
               aria-label={theme === 'light' ? "Ativar modo escuro" : "Ativar modo claro"}
             >
@@ -337,7 +340,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             </button>
             <button
               onClick={togglePrivacyMode}
-              className={`relative flex items-center justify-center min-h-11 min-w-11 rounded-full transition-colors group ${isPrivacyMode ? 'text-teal-400 bg-teal-500/10' : theme === 'light' ? 'text-gray-400 hover:text-gray-900 hover:bg-gray-100' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
+              className={`relative flex items-center justify-center min-h-11 min-w-11 rounded-full transition-colors group focus-visible:ring-2 focus-visible:ring-teal-500/50 focus-visible:outline-none ${isPrivacyMode ? 'text-teal-400 bg-teal-500/10' : theme === 'light' ? 'text-gray-400 hover:text-gray-900 hover:bg-gray-100' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
               title={isPrivacyMode ? "Mostrar valores" : "Ocultar valores"}
               aria-label={isPrivacyMode ? "Mostrar valores" : "Ocultar valores"}
               aria-pressed={isPrivacyMode}
@@ -354,10 +357,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             <AnimatePresence mode="wait">
               <motion.div
                 key={location.pathname}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.2, ease: "easeOut" }}
+                initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
+                animate={prefersReducedMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
+                exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
+                transition={{ duration: prefersReducedMotion ? 0.1 : 0.2, ease: "easeOut" }}
               >
                 <ErrorBoundary onError={handleUIError}>
                   {children || <Outlet />}

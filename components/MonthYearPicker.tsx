@@ -54,7 +54,7 @@ export const MonthYearPicker: React.FC<MonthYearPickerProps> = ({ currentDate, o
                 ref={pickerRef}
                 className={`relative w-[90vw] max-w-sm mx-auto p-6 backdrop-blur-xl border rounded-2xl shadow-2xl animate-scale-up ring-1 transition-all ${theme === 'light'
                     ? 'bg-white border-gray-200 ring-black/5'
-                    : 'bg-[#0f1216]/90 border-white/[0.08] ring-white/5'
+                    : 'bg-background-main/90 border-white/[0.08] ring-white/5'
                     }`}
                 style={{
                     overscrollBehavior: 'contain',

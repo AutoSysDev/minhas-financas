@@ -214,7 +214,7 @@ export const BankImportModal: React.FC<BankImportModalProps> = ({ isOpen, onClos
     const renderPreviewStep = () => (
         <div className="flex flex-col h-[70vh]">
             {/* Filtros e Controles */}
-            <div className="flex items-center justify-between mb-4 flex-wrap gap-2 text-sm sticky top-0 bg-[#0f1216] z-10 py-2">
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-2 text-sm sticky top-0 bg-background-main z-10 py-2">
                 <div className="flex bg-white/[0.05] p-1 rounded-lg">
                     <button
                         onClick={() => setFilter('ALL')}

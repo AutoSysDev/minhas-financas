@@ -30,7 +30,7 @@ export const AccountsSummary: React.FC = () => {
   const percentage = prevTotalBalance !== 0 ? (diff / Math.abs(prevTotalBalance)) * 100 : 0;
 
   return (
-    <div className={`sm:rounded-3xl rounded-2xl sm:p-8 p-5 border transition-all relative overflow-hidden ${theme === 'light' ? 'bg-white border-gray-200 shadow-xl' : 'bg-gradient-to-br from-[#1a1f2e] to-[#0f1216] border-white/[0.05] shadow-2xl'}`}>
+    <div className={`sm:rounded-3xl rounded-2xl sm:p-8 p-5 border transition-all relative overflow-hidden ${theme === 'light' ? 'bg-white border-gray-200 shadow-xl' : 'bg-gradient-to-br from-[#1a1f2e] to-background-main border-white/[0.05] shadow-2xl'}`}>
       {/* Decorative Glow */}
       <div className="absolute top-0 right-0 w-96 h-96 bg-teal-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
       <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2 pointer-events-none"></div>

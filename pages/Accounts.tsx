@@ -475,7 +475,7 @@ const AccountDetailModal: React.FC<{ account: Account; onClose: () => void; allT
       <div className="fixed inset-0 z-[9999] flex items-start justify-center pt-20 px-4 bg-black/60 backdrop-blur-sm animate-fade-in overflow-y-auto">
         <div className={`backdrop-blur-xl border rounded-2xl shadow-2xl w-full max-w-sm flex flex-col my-4 max-h-[calc(100vh-120px)] overflow-hidden animate-scale-up ring-1 transition-all ${theme === 'light'
           ? 'bg-white border-gray-200 ring-black/5'
-          : 'bg-[#0f1216]/90 border-white/[0.08] ring-white/5'
+          : 'bg-background-main/90 border-white/[0.08] ring-white/5'
           }`}>
 
           {/* Header */}
@@ -847,7 +847,7 @@ const AccountDetailModal: React.FC<{ account: Account; onClose: () => void; allT
           </div>
         </div>
 
-        <div className={`flex-1 overflow-hidden flex flex-col min-h-0 transition-colors ${theme === 'light' ? 'bg-white' : 'bg-[#0f1216]'}`}>
+        <div className={`flex-1 overflow-hidden flex flex-col min-h-0 transition-colors ${theme === 'light' ? 'bg-white' : 'bg-background-main'}`}>
           {/* Controls */}
           <div className={`px-4 py-3 flex items-center justify-between shrink-0 border-b ${theme === 'light' ? 'border-gray-100' : 'border-white/[0.05]'}`}>
             <h3 className={`font-bold text-sm flex items-center gap-2 transition-colors ${theme === 'light' ? 'text-slate-800' : 'text-white'}`}>
@@ -895,7 +895,7 @@ const AccountDetailModal: React.FC<{ account: Account; onClose: () => void; allT
           </div>
         </div>
 
-        <div className={`p-4 border-t flex justify-between gap-3 shrink-0 transition-colors ${theme === 'light' ? 'bg-white border-gray-100' : 'bg-[#0f1216] border-white/[0.05]'}`}>
+        <div className={`p-4 border-t flex justify-between gap-3 shrink-0 transition-colors ${theme === 'light' ? 'bg-white border-gray-100' : 'bg-background-main border-white/[0.05]'}`}>
           <button
             onClick={handleDelete}
             className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold transition-colors ${theme === 'light' ? 'bg-red-50 text-red-600 hover:bg-red-100' : 'bg-red-500/10 text-red-400 hover:bg-red-500/20'}`}

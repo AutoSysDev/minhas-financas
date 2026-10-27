@@ -100,9 +100,9 @@ const AIChatPage: React.FC = () => {
   const isLight = theme === 'light';
 
   return (
-    <div className={`min-h-screen flex flex-col ${isLight ? 'bg-gray-50' : 'bg-[#0f1216]'}`}>
+    <div className={`min-h-screen flex flex-col ${isLight ? 'bg-gray-50' : 'bg-background-main'}`}>
       {/* Header */}
-      <header className={`sticky top-0 z-10 px-4 py-3 border-b flex items-center justify-between backdrop-blur-md ${isLight ? 'bg-white/80 border-gray-200' : 'bg-[#0f1216]/80 border-white/5'}`}>
+      <header className={`sticky top-0 z-10 px-4 py-3 border-b flex items-center justify-between backdrop-blur-md ${isLight ? 'bg-white/80 border-gray-200' : 'bg-background-main/80 border-white/5'}`}>
         <div className="flex items-center gap-3">
           <Link to="/" className={`p-2 rounded-full transition-colors ${isLight ? 'hover:bg-gray-100 text-slate-600' : 'hover:bg-white/10 text-gray-400'}`}>
             <Icon name="arrow_back" className="text-xl" />
@@ -174,7 +174,7 @@ const AIChatPage: React.FC = () => {
       </main>
 
       {/* Input Area */}
-      <footer className={`p-4 border-t ${isLight ? 'bg-white border-gray-200' : 'bg-[#0f1216] border-white/5'}`}>
+      <footer className={`p-4 border-t ${isLight ? 'bg-white border-gray-200' : 'bg-background-main border-white/5'}`}>
         <div className="max-w-4xl mx-auto relative flex gap-2">
           <input
             type="text"

@@ -92,7 +92,7 @@ export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
                         <button
                             key={action.label}
                             onClick={action.onClick}
-                            className={`flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-lg transition-all duration-200 bg-[#0f1216]/80 border border-white/[0.08] ring-1 ring-white/5 text-white hover:border-teal-500/50 hover:shadow-[0_0_15px_-5px_rgba(45,212,191,0.3)] backdrop-blur-xl active:scale-95 min-h-[48px] group`}
+                            className={`flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-lg transition-all duration-200 bg-background-main/80 border border-white/[0.08] ring-1 ring-white/5 text-white hover:border-teal-500/50 hover:shadow-[0_0_15px_-5px_rgba(45,212,191,0.3)] backdrop-blur-xl active:scale-95 min-h-[48px] group focus-visible:ring-2 focus-visible:ring-teal-500/50 focus-visible:outline-none`}
                             style={{
                                 transitionDelay: isOpen ? `${index * 50}ms` : '0ms'
                             }}
@@ -107,7 +107,7 @@ export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
                 {/* Botão principal - Minimum touch target 48px */}
                 <button
                     onClick={() => setIsOpen(!isOpen)}
-                    className={`pointer-events-auto size-16 min-h-[48px] min-w-[48px] rounded-full bg-gradient-to-br from-teal-500 to-blue-600 text-white shadow-[0_0_30px_-5px_rgba(45,212,191,0.5)] hover:shadow-[0_0_40px_-5px_rgba(45,212,191,0.7)] hover:scale-110 transition-all duration-300 flex items-center justify-center group active:scale-95 ${isOpen ? 'rotate-45' : 'rotate-0'
+                    className={`pointer-events-auto size-16 min-h-[48px] min-w-[48px] rounded-full bg-gradient-to-br from-teal-500 to-blue-600 text-white shadow-[0_0_30px_-5px_rgba(45,212,191,0.5)] hover:shadow-[0_0_40px_-5px_rgba(45,212,191,0.7)] hover:scale-110 transition-all duration-300 flex items-center justify-center group active:scale-95 focus-visible:ring-2 focus-visible:ring-teal-500/50 focus-visible:outline-none ${isOpen ? 'rotate-45' : 'rotate-0'
                         }`}
                     aria-label={isOpen ? 'Fechar menu de ações' : 'Abrir menu de ações'}
                     aria-expanded={isOpen}

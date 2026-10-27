@@ -62,7 +62,7 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, 
                 aria-label={title || 'Janela de diálogo'}
                 className={`relative backdrop-blur-xl border shadow-2xl w-full ${maxWidth} flex flex-col rounded-t-2xl md:rounded-2xl max-h-[calc(100dvh-1.5rem)] md:max-h-[90vh] overflow-hidden animate-slide-up md:animate-scale-up z-10 ring-1 transition-all ${theme === 'light'
                     ? 'bg-white border-gray-200 ring-black/5'
-                    : 'bg-[#0f1216]/95 md:bg-[#0f1216]/80 border-white/[0.08] ring-white/5'
+                    : 'bg-background-main/95 md:bg-background-main/80 border-white/[0.08] ring-white/5'
                     }`}
                 style={{
                     overscrollBehavior: 'contain',
@@ -92,7 +92,7 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, 
                             <button
                                 onClick={onClose}
                                 aria-label="Fechar"
-                                className={`-mr-2 flex items-center justify-center min-h-11 min-w-11 rounded-lg transition-colors ${theme === 'light'
+                                className={`-mr-2 flex items-center justify-center min-h-11 min-w-11 rounded-lg transition-colors focus-visible:ring-2 focus-visible:ring-teal-500/50 focus-visible:outline-none ${theme === 'light'
                                     ? 'text-slate-400 hover:text-slate-600 hover:bg-gray-100'
                                     : 'text-gray-400 hover:text-white hover:bg-white/10'
                                     }`}

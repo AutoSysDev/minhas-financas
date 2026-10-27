@@ -792,7 +792,7 @@ const Settings: React.FC = () => {
                         </div>
                       )}
                     </div>
-                    <label className="absolute bottom-0 right-0 p-2 bg-teal-500 text-white rounded-full hover:bg-teal-600 transition-colors shadow-sm border-2 border-[#0f1216] cursor-pointer">
+                    <label className="absolute bottom-0 right-0 p-2 bg-teal-500 text-white rounded-full hover:bg-teal-600 transition-colors shadow-sm border-2 border-background-main cursor-pointer">
                       <Icon name="photo_camera" className="text-lg" />
                       <input
                         type="file"
@@ -1086,7 +1086,7 @@ const Settings: React.FC = () => {
                           await deleteAllUserData();
                         }
                       }}
-                      className="px-5 py-2.5 bg-[#0f1216] border border-red-900 text-red-500 font-bold rounded-lg hover:bg-red-600 hover:text-white hover:border-red-600 transition-all shadow-sm whitespace-nowrap w-full md:w-auto"
+                      className="px-5 py-2.5 bg-background-main border border-red-900 text-red-500 font-bold rounded-lg hover:bg-red-600 hover:text-white hover:border-red-600 transition-all shadow-sm whitespace-nowrap w-full md:w-auto"
                     >
                       Resetar Tudo
                     </button>

@@ -64,26 +64,46 @@ export const TransactionRow: React.FC<TransactionActionProps> = ({ transaction: 
                 {t.type === TransactionType.INCOME ? '+' : '-'} {formatCurrency(t.amount)}
             </td>
             <td className="px-6 py-4 text-center">
-                <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                <div className="flex items-center justify-center gap-1.5 transition-opacity">
                     {onEdit && (
-                        <button onClick={onEdit} className={`p-2 rounded-full transition-colors ${theme === 'light' ? 'hover:bg-blue-50 text-blue-600' : 'hover:bg-blue-500/10 text-blue-400'}`} title="Editar">
+                        <button
+                            onClick={onEdit}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onEdit(e); } }}
+                            className={`min-h-[44px] min-w-[44px] rounded-full transition-colors flex items-center justify-center p-2 ${theme === 'light' ? 'hover:bg-blue-50 text-blue-600' : 'hover:bg-blue-500/10 text-blue-400'}`}
+                            title="Editar"
+                            aria-label="Editar transação"
+                        >
                             <Icon name="edit" className="text-lg" />
                         </button>
                     )}
                     {onDuplicate && (
-                        <button onClick={onDuplicate} className={`p-2 rounded-full transition-colors ${theme === 'light' ? 'hover:bg-gray-100 text-slate-500' : 'hover:bg-white/10 text-gray-300'}`} title="Duplicar">
+                        <button
+                            onClick={onDuplicate}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onDuplicate(e); } }}
+                            className={`min-h-[44px] min-w-[44px] rounded-full transition-colors flex items-center justify-center p-2 ${theme === 'light' ? 'hover:bg-gray-100 text-slate-500' : 'hover:bg-white/10 text-gray-300'}`}
+                            title="Duplicar"
+                            aria-label="Duplicar transação"
+                        >
                             <Icon name="content_copy" className="text-lg" />
                         </button>
                     )}
                     {onDelete && (
-                        <button onClick={onDelete} className={`p-2 rounded-full transition-colors ${theme === 'light' ? 'hover:bg-red-50 text-red-600' : 'hover:bg-red-500/10 text-red-400'}`} title="Excluir">
+                        <button
+                            onClick={onDelete}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onDelete(e); } }}
+                            className={`min-h-[44px] min-w-[44px] rounded-full transition-colors flex items-center justify-center p-2 ${theme === 'light' ? 'hover:bg-red-50 text-red-600' : 'hover:bg-red-500/10 text-red-400'}`}
+                            title="Excluir"
+                            aria-label="Excluir transação"
+                        >
                             <Icon name="delete" className="text-lg" />
                         </button>
                     )}
                     <button
                         onClick={handleStatusToggle}
-                        className={`p-2 rounded-full transition-colors ${theme === 'light' ? 'hover:bg-gray-100 active:bg-gray-200' : 'hover:bg-white/10 active:bg-white/20'}`}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleStatusToggle(e as React.MouseEvent); } }}
+                        className={`min-h-[44px] min-w-[44px] rounded-full transition-colors flex items-center justify-center p-2 ${theme === 'light' ? 'hover:bg-gray-100 active:bg-gray-200' : 'hover:bg-white/10 active:bg-white/20'}`}
                         title={t.isPaid ? "Marcar como pendente" : "Marcar como pago"}
+                        aria-label={t.isPaid ? "Marcar como pendente" : "Marcar como pago"}
                     >
                         {t.isPaid ? (
                             <Icon name="check_circle" className={`${theme === 'light' ? 'text-emerald-500' : 'text-green-500'} text-lg`} />
@@ -135,27 +155,44 @@ export const TransactionCard: React.FC<TransactionActionProps> = ({ transaction:
         }
     };
 
+    const onTouchCancel = () => {
+        // Gesto interrompido (scroll da página, perda de foco, 2º dedo): limpa o estado
+        isDragging.current = false;
+        startX.current = null;
+        setTranslateX(0);
+    };
+
     return (
         <div className="relative overflow-hidden select-none h-[76px]">
             <div className="absolute inset-y-0 right-0 w-[210px] flex z-0">
-                <button onClick={onEdit} className="flex-1 bg-blue-600 text-white flex items-center justify-center active:bg-blue-700">
+                <button onClick={onEdit} aria-label="Editar transação" className="flex-1 bg-blue-600 text-white flex items-center justify-center active:bg-blue-700 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/70 focus-visible:outline-none">
                     <Icon name="edit" />
                 </button>
-                <button onClick={onDuplicate} className="flex-1 bg-gray-600 text-white flex items-center justify-center active:bg-gray-700">
+                <button onClick={onDuplicate} aria-label="Duplicar transação" className="flex-1 bg-gray-600 text-white flex items-center justify-center active:bg-gray-700 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/70 focus-visible:outline-none">
                     <Icon name="content_copy" />
                 </button>
-                <button onClick={onDelete} className="flex-1 bg-red-600 text-white flex items-center justify-center active:bg-red-700">
+                <button onClick={onDelete} aria-label="Excluir transação" className="flex-1 bg-red-600 text-white flex items-center justify-center active:bg-red-700 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/70 focus-visible:outline-none">
                     <Icon name="delete" />
                 </button>
             </div>
 
             <div
-                className={`relative z-10 w-full h-full flex items-center justify-between p-3 transition-transform duration-200 ease-out active:scale-[0.98] ${theme === 'light' ? 'bg-white border-b border-gray-100' : 'bg-[#0f1216]'}`}
-                style={{ transform: `translateX(${translateX}px)` }}
+                className={`relative z-10 w-full h-full flex items-center justify-between p-3 transition-transform duration-200 ease-out active:scale-[0.98] cursor-pointer focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-500/60 focus-visible:outline-none ${theme === 'light' ? 'bg-white border-b border-gray-100' : 'bg-background-main'}`}
+                style={{ transform: `translateX(${translateX}px)`, touchAction: 'pan-y' }}
                 onTouchStart={onTouchStart}
                 onTouchMove={onTouchMove}
                 onTouchEnd={onTouchEnd}
+                onTouchCancel={onTouchCancel}
                 onClick={() => { if (translateX === 0) onClick(); else setTranslateX(0); }}
+                role="button"
+                tabIndex={0}
+                aria-label={`${t.description}, ${t.type === TransactionType.INCOME ? 'receita' : 'despesa'} de ${formatCurrency(Math.abs(t.amount))}, ${formatDate(t.date)}`}
+                onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        if (translateX === 0) onClick(); else setTranslateX(0);
+                    }
+                }}
             >
                 <div className="flex items-center gap-3 overflow-hidden">
                     <div className={`flex-shrink-0 flex h-10 w-10 items-center justify-center rounded-full ${t.type === TransactionType.INCOME ? (theme === 'light' ? 'bg-emerald-50 text-emerald-600' : 'bg-green-500/10 text-green-400') : (theme === 'light' ? 'bg-red-50 text-red-600' : 'bg-red-500/10 text-red-400')}`}>

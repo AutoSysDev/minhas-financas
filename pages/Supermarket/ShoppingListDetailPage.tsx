@@ -178,7 +178,7 @@ const ShoppingListDetailPage: React.FC = () => {
                     </button>
                 </div>
             ) : isShoppingMode && (
-                <div className="fixed bottom-0 left-0 right-0 p-8 bg-[#0f1216]/90 backdrop-blur-3xl border-t border-white/5 safe-bottom z-50">
+                <div className="fixed bottom-0 left-0 right-0 p-8 bg-background-main/90 backdrop-blur-3xl border-t border-white/5 safe-bottom z-50">
                     <div className="max-w-7xl mx-auto flex items-center justify-between gap-6">
                         <div className="flex-1">
                             <span className="text-[10px] uppercase font-black text-gray-500 block mb-1 tracking-[0.2em]">Total no Carrinho</span>

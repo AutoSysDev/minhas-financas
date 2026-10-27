@@ -27,14 +27,17 @@ export const MonthNavigation: React.FC<MonthNavigationProps> = ({ currentDate, o
                 } ${className}`}>
                 <button
                     onClick={() => navigateMonth(-1)}
-                    className={`p-2 rounded-lg transition-colors ${theme === 'light' ? 'hover:bg-gray-100 text-slate-500' : 'hover:bg-white/10 text-gray-400 hover:text-white'}`}
+                    aria-label="Mês anterior"
+                    className={`min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg transition-colors focus-visible:ring-2 focus-visible:ring-teal-500/50 focus-visible:outline-none ${theme === 'light' ? 'hover:bg-gray-100 text-slate-500' : 'hover:bg-white/10 text-gray-400 hover:text-white'}`}
                 >
                     <Icon name="chevron_left" />
                 </button>
 
                 <button
                     onClick={() => setIsPickerOpen(true)}
-                    className={`flex flex-col items-center px-4 py-1 rounded-lg transition-colors cursor-pointer ${theme === 'light' ? 'hover:bg-gray-50' : 'hover:bg-white/5'}`}
+                    aria-label={`Selecionar mês: ${currentDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}`}
+                    aria-haspopup="dialog"
+                    className={`flex flex-col items-center px-4 py-1 min-h-[44px] justify-center rounded-lg transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-teal-500/50 focus-visible:outline-none ${theme === 'light' ? 'hover:bg-gray-50' : 'hover:bg-white/5'}`}
                 >
                     <span className={`text-sm font-bold capitalize leading-none transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
                         {currentDate.toLocaleDateString('pt-BR', { month: 'long' })}
@@ -46,7 +49,8 @@ export const MonthNavigation: React.FC<MonthNavigationProps> = ({ currentDate, o
 
                 <button
                     onClick={() => navigateMonth(1)}
-                    className={`p-2 rounded-lg transition-colors ${theme === 'light' ? 'hover:bg-gray-100 text-slate-500' : 'hover:bg-white/10 text-gray-400 hover:text-white'}`}
+                    aria-label="Próximo mês"
+                    className={`min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg transition-colors focus-visible:ring-2 focus-visible:ring-teal-500/50 focus-visible:outline-none ${theme === 'light' ? 'hover:bg-gray-100 text-slate-500' : 'hover:bg-white/10 text-gray-400 hover:text-white'}`}
                 >
                     <Icon name="chevron_right" />
                 </button>

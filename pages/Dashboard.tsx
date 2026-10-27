@@ -87,8 +87,6 @@ const Dashboard: React.FC = () => {
     }
   }, [transactions, selectedYear, selectedMonth]);
 
-  console.log('Dashboard Render:', { loading, isLoadingTransactions, hasData: transactions.length > 0 });
-
   const totalIncome = getMonthlyIncome(transactions, selectedYear, selectedMonth);
   const totalExpense = getMonthlyExpenses(transactions, selectedYear, selectedMonth);
   const pendingIncome = getMonthlyPendingIncome(transactions, selectedYear, selectedMonth);
@@ -322,7 +320,7 @@ const Dashboard: React.FC = () => {
                   {(() => {
                     const bank = BANKS.find(b => b.name === acc.bankName);
                     if (bank?.logo) {
-                      return <img src={bank.logo} alt={acc.bankName} className="w-full h-full object-cover" />;
+                      return <img src={bank.logo} alt={acc.bankName} className="w-full h-full object-cover" loading="lazy" />;
                     }
                     return acc.logoText;
                   })()}
