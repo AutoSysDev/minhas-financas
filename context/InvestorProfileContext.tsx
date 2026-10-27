@@ -137,21 +137,24 @@ async function loadFromSupabase(): Promise<InvestorProfile | null> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
     
+    // limit(1) em vez de single(): o primeiro acesso do usuário ainda não tem
+    // linha em user_profiles e o single() respondia 406 (PGRST116) no console.
     const { data, error } = await supabase
       .from('user_profiles')
       .select('investor_level, investor_preferences, onboarding_completed, profile_version, updated_at')
       .eq('user_id', user.id)
-      .single();
+      .limit(1);
     
-    if (error || !data) return null;
+    const row = data?.[0];
+    if (error || !row) return null;
     
     return {
-      level: data.investor_level,
-      completedOnboarding: data.onboarding_completed,
-      preferences: data.investor_preferences || DEFAULT_PROFILE.preferences,
+      level: row.investor_level,
+      completedOnboarding: row.onboarding_completed,
+      preferences: row.investor_preferences || DEFAULT_PROFILE.preferences,
       source: 'supabase',
-      detectedAt: data.updated_at,
-      version: data.profile_version || PROFILE_VERSION,
+      detectedAt: row.updated_at,
+      version: row.profile_version || PROFILE_VERSION,
     };
   } catch (error) {
     console.debug('[InvestorProfile] Supabase load failed:', error);
