@@ -118,6 +118,18 @@ body {
   touch-action: manipulation;
 }
 
+/* PWA instalado (iOS/Android): comportamento de app nativo, sem pinch-zoom.
+   Em aba de navegador o zoom por acessibilidade continua disponível.
+   `pan-x pan-y` mantém scroll e swipe, e remove pinch-zoom + duplo-toque. */
+@media (display-mode: standalone),
+  (display-mode: fullscreen),
+  (display-mode: minimal-ui) {
+  html,
+  body {
+    touch-action: pan-x pan-y;
+  }
+}
+
 /* iOS Safari dá zoom automático em campos com fonte menor que 16px */
 @media (max-width: 767px) {
   input:not([type='checkbox']):not([type='radio']),
