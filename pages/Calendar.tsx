@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MonthNavigation } from '../components/MonthNavigation';
 import { Icon } from '../components/Icon';
 import { useFinance } from '../context/FinanceContext';
@@ -8,9 +8,13 @@ import { useTheme } from '../context/ThemeContext';
 
 const Calendar: React.FC = () => {
   const { theme } = useTheme();
-  const { transactions } = useFinance();
+  const { transactions, ensureFixedExpensesForMonth } = useFinance();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+
+  useEffect(() => {
+    void ensureFixedExpensesForMonth(currentDate);
+  }, [currentDate, ensureFixedExpensesForMonth]);
 
   // Utilitários de Data
   const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();

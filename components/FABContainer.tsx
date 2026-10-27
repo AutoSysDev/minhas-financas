@@ -8,7 +8,7 @@ import { NewTransactionModal } from './NewTransactionModal';
 import { Transaction } from '../types';
 
 export const FABContainer: React.FC = () => {
-    const { addTransaction, accounts, cards } = useFinance();
+    const { addTransaction, addFixedExpense, accounts, cards } = useFinance();
     const { setModalOpen } = useUI();
     const { toast } = useToast();
     const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
@@ -18,17 +18,19 @@ export const FABContainer: React.FC = () => {
 
     const handleSaveTransaction = async (transaction: Omit<Transaction, 'id'> | Omit<Transaction, 'id'>[]) => {
         try {
-            if (Array.isArray(transaction)) {
+            if (!Array.isArray(transaction) && transaction.isFixed) {
+                await addFixedExpense(transaction);
+            } else if (Array.isArray(transaction)) {
                 for (const t of transaction) {
                     await addTransaction(t);
                 }
             } else {
                 await addTransaction(transaction);
             }
-            
+
             setNewTransactionTab(null);
             setModalOpen(false);
-            toast.success('Transação salva com sucesso!');
+            toast.success(!Array.isArray(transaction) && transaction.isFixed ? 'Despesa fixa salva com sucesso!' : 'Transação salva com sucesso!');
         } catch (error) {
             console.error('Erro ao salvar:', error);
             toast.error('Erro ao salvar transação');

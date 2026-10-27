@@ -52,6 +52,11 @@ export const TransactionRow: React.FC<TransactionActionProps> = ({ transaction: 
                         {t.installmentNumber}/{t.installments}
                     </span>
                 )}
+                {t.isFixed && (
+                    <span className={`ml-2 text-[10px] px-1.5 py-0.5 rounded inline-flex items-center gap-0.5 ${theme === 'light' ? 'bg-teal-50 text-teal-700' : 'bg-teal-500/10 text-teal-300'}`}>
+                        <Icon name="event_repeat" className="text-[10px]" /> Fixa
+                    </span>
+                )}
             </td>
             <td className={`px-6 py-4 ${theme === 'light' ? 'text-slate-500' : 'text-gray-300'}`}>
                 <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${theme === 'light' ? 'bg-gray-100 text-slate-700' : 'bg-white/10 text-gray-200'}`}>
@@ -203,6 +208,9 @@ export const TransactionCard: React.FC<TransactionActionProps> = ({ transaction:
                             {t.description}
                             {t.installmentNumber && t.installments && (
                                 <span className="ml-1 font-normal text-xs opacity-60">({t.installmentNumber}/{t.installments})</span>
+                            )}
+                            {t.isFixed && (
+                                <span className={`ml-1 font-medium text-[10px] px-1.5 py-0.5 rounded ${theme === 'light' ? 'bg-teal-50 text-teal-700' : 'bg-teal-500/10 text-teal-300'}`}>Fixa</span>
                             )}
                         </p>
                         <div className={`flex items-center gap-2 text-[11px] leading-tight ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>

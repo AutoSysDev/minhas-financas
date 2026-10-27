@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { Transaction, TransactionType } from '../types';
+import { fixedExpenseService, mapTransactionRow } from './fixedExpenseService';
 
 export const transactionService = {
   /**
@@ -79,7 +80,10 @@ export const transactionService = {
       isPaid: t.is_paid,
       installments: t.installments,
       installmentNumber: t.installment_number,
-      originalTransactionId: t.original_transaction_id
+      originalTransactionId: t.original_transaction_id,
+      isFixed: Boolean(t.fixed_expense_id),
+      fixedExpenseId: t.fixed_expense_id || undefined,
+      fixedMonth: t.fixed_month || undefined
     })) : [];
   },
 
@@ -87,6 +91,10 @@ export const transactionService = {
    * Cria uma nova transação (com suporte a parcelas e atualização de saldo)
    */
   async createTransaction(transaction: Omit<Transaction, 'id'>, userId: string): Promise<any> {
+    if (transaction.isFixed) {
+      return fixedExpenseService.createFixedExpense(userId, transaction);
+    }
+
     const newTransactions: any[] = [];
 
     // Lógica de Parcelamento
@@ -184,6 +192,18 @@ export const transactionService = {
 
     if (!t) return;
 
+    // Se for uma ocorrência de despesa fixa, registra a exceção para não recriar no mês.
+    if (t.fixed_expense_id && t.fixed_month) {
+      await supabase.from('fixed_expense_skips').upsert(
+        {
+          fixed_expense_id: t.fixed_expense_id,
+          user_id: t.user_id,
+          month: t.fixed_month
+        },
+        { onConflict: 'fixed_expense_id,month', ignoreDuplicates: true }
+      );
+    }
+
     const { error } = await supabase.from('transactions').delete().eq('id', id);
 
     if (error) {
@@ -198,8 +218,13 @@ export const transactionService = {
    */
   async updateTransaction(id: string, updates: Partial<Transaction>): Promise<Transaction> {
     // 1. Buscar transação antiga
-    const { data: oldTransaction } = await supabase.from('transactions').select('*').eq('id', id).single();
-    if (!oldTransaction) throw new Error('Transação não encontrada');
+    const { data: oldTransaction, error: oldError } = await supabase.from('transactions').select('*').eq('id', id).single();
+    if (oldError || !oldTransaction) throw new Error(oldError?.message || 'Transação não encontrada');
+
+    // Despesa fixa: atualiza a série (ou converte/encerra) em um único lugar.
+    if (updates.isFixed === true || oldTransaction.fixed_expense_id) {
+      return fixedExpenseService.updateFixedExpense(oldTransaction.user_id, id, oldTransaction, updates);
+    }
 
     // Balance logic handled by DB triggers.
 
@@ -225,20 +250,7 @@ export const transactionService = {
 
     // Balance impact handled by DB triggers.
 
-    return {
-      id: updatedData.id,
-      description: updatedData.description,
-      amount: updatedData.amount,
-      date: updatedData.date,
-      type: updatedData.type,
-      category: updatedData.category,
-      cardId: updatedData.card_id,
-      accountId: updatedData.account_id,
-      isPaid: updatedData.is_paid,
-      installments: updatedData.installments,
-      installmentNumber: updatedData.installment_number,
-      originalTransactionId: updatedData.original_transaction_id
-    };
+    return mapTransactionRow(updatedData);
   },
 
   /**

@@ -17,7 +17,7 @@ import { useTheme } from '../context/ThemeContext';
 import { MonthYearPicker } from '../components/MonthYearPicker';
 
 const Transactions: React.FC = () => {
-  const { cards, accounts, categories, transactions: allTransactions, deleteTransactions, updateTransaction } = useFinance();
+  const { cards, accounts, categories, transactions: allTransactions, deleteTransactions, updateTransaction, ensureFixedExpensesForMonth, deleteFixedExpenseOccurrence } = useFinance();
   const { theme } = useTheme();
 
   const [searchParams] = useSearchParams();
@@ -73,6 +73,25 @@ const Transactions: React.FC = () => {
       } catch (e: any) {
         toast.error("Erro ao excluir transações: " + e.message);
       }
+    }
+  };
+
+  const executeFixedDelete = async (mode: 'single' | 'future' | 'end') => {
+    if (!transactionToDelete) return;
+
+    try {
+      await deleteFixedExpenseOccurrence(transactionToDelete, mode);
+      const message = mode === 'single'
+        ? 'Ocorrência excluída!'
+        : mode === 'future'
+          ? 'Despesa fixa excluída deste mês em diante!'
+          : 'Despesa fixa encerrada. O histórico foi mantido.';
+      toast.success(message);
+      setDeleteModalOpen(false);
+      setTransactionToDelete(null);
+      setViewingTransaction(null);
+    } catch (e: any) {
+      toast.error("Erro ao excluir despesa fixa: " + e.message);
     }
   };
 
@@ -169,6 +188,10 @@ const Transactions: React.FC = () => {
     }
   }, [searchParams]);
 
+  useEffect(() => {
+    void ensureFixedExpensesForMonth(currentDate);
+  }, [currentDate, ensureFixedExpensesForMonth]);
+
   // Listen for edit event from details modal
   useEffect(() => {
     const handleEditEvent = (e: CustomEvent) => {
@@ -213,6 +236,12 @@ const Transactions: React.FC = () => {
     if (!targetTransaction) return;
 
     setTransactionToDelete(targetTransaction);
+
+    if (targetTransaction.isFixed && targetTransaction.fixedExpenseId) {
+      setRecurringGroup([]);
+      setDeleteModalOpen(true);
+      return;
+    }
 
     const recurrence = extractRecurrenceData(targetTransaction.description);
 
@@ -932,10 +961,75 @@ const Transactions: React.FC = () => {
         <Modal
           isOpen={deleteModalOpen}
           onClose={() => setDeleteModalOpen(false)}
-          title={recurringGroup.length > 0 ? "Excluir Transação Recorrente" : "Excluir Transação"}
+          title={transactionToDelete?.isFixed ? "Excluir Despesa Fixa" : recurringGroup.length > 0 ? "Excluir Transação Recorrente" : "Excluir Transação"}
         >
           <div className="space-y-4">
-            {recurringGroup.length > 0 ? (
+            {transactionToDelete?.isFixed ? (
+              <>
+                <p className={`text-sm ${theme === 'light' ? 'text-slate-600' : 'text-gray-400'}`}>
+                  Esta despesa é fixa e se repete todo mês. Como deseja prosseguir?
+                </p>
+                <div className="grid grid-cols-1 gap-3">
+                  <button
+                    onClick={() => executeFixedDelete('single')}
+                    className={`flex items-center gap-3 p-4 rounded-xl border transition-all hover:scale-[1.02] active:scale-[0.98] ${theme === 'light'
+                      ? 'bg-white border-gray-200 hover:bg-gray-50 text-slate-900'
+                      : 'bg-white/5 border-white/10 hover:bg-white/10 text-white'
+                      }`}
+                  >
+                    <div className="size-10 rounded-full bg-blue-500/20 text-blue-500 flex items-center justify-center">
+                      <Icon name="event" />
+                    </div>
+                    <div className="text-left">
+                      <p className="font-bold">Excluir só este mês</p>
+                      <p className="text-xs opacity-60">A despesa continua nos meses seguintes.</p>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => executeFixedDelete('future')}
+                    className={`flex items-center gap-3 p-4 rounded-xl border transition-all hover:scale-[1.02] active:scale-[0.98] ${theme === 'light'
+                      ? 'bg-red-50 border-red-100 hover:bg-red-100 text-red-700'
+                      : 'bg-red-500/10 border-red-500/20 hover:bg-red-500/20 text-red-400'
+                      }`}
+                  >
+                    <div className="size-10 rounded-full bg-red-500/20 text-red-500 flex items-center justify-center">
+                      <Icon name="event_repeat" />
+                    </div>
+                    <div className="text-left">
+                      <p className="font-bold">Excluir deste mês em diante</p>
+                      <p className="text-xs opacity-60">Remove esta e as futuras ainda não pagas. Meses passados ficam.</p>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => executeFixedDelete('end')}
+                    className={`flex items-center gap-3 p-4 rounded-xl border transition-all hover:scale-[1.02] active:scale-[0.98] ${theme === 'light'
+                      ? 'bg-white border-gray-200 hover:bg-gray-50 text-slate-900'
+                      : 'bg-white/5 border-white/10 hover:bg-white/10 text-white'
+                      }`}
+                  >
+                    <div className="size-10 rounded-full bg-amber-500/20 text-amber-600 flex items-center justify-center">
+                      <Icon name="delete" />
+                    </div>
+                    <div className="text-left">
+                      <p className="font-bold">Encerrar despesa fixa</p>
+                      <p className="text-xs opacity-60">Mantém este mês e o histórico pago; não gera novos meses.</p>
+                    </div>
+                  </button>
+                </div>
+
+                <div className="flex justify-end mt-2">
+                  <button
+                    onClick={() => setDeleteModalOpen(false)}
+                    className={`px-4 py-2 text-sm font-medium transition-colors ${theme === 'light' ? 'text-slate-500 hover:text-slate-700' : 'text-gray-400 hover:text-white'
+                      }`}
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </>
+            ) : recurringGroup.length > 0 ? (
               <>
                 <p className={`text-sm ${theme === 'light' ? 'text-slate-600' : 'text-gray-400'}`}>
                   Esta é uma transação recorrente. Como deseja prosseguir com a exclusão?
@@ -1112,6 +1206,15 @@ const DetailsTransactionModal: React.FC<{
               : 'bg-white/5 text-gray-300 border-white/10'
               }`}>
               Parcela {transaction.installmentNumber}/{transaction.installments}
+            </span>
+          )}
+          {transaction.isFixed && (
+            <span className={`px-3 py-1 rounded-full text-[10px] font-medium border transition-colors inline-flex items-center gap-1 ${theme === 'light'
+              ? 'bg-teal-50 text-teal-700 border-teal-100'
+              : 'bg-teal-500/10 text-teal-300 border-teal-500/20'
+              }`}>
+              <Icon name="event_repeat" className="text-xs" />
+              Despesa fixa
             </span>
           )}
         </div>

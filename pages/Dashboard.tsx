@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Icon } from '../components/Icon';
 import { PrivateValue } from '../components/PrivateValue';
 import { ExpensePieChart, IncomeExpenseChart } from '../components/Charts';
@@ -47,7 +47,7 @@ const Sparkline: React.FC<{ data: number[], color: string }> = ({ data, color })
 };
 
 const Dashboard: React.FC = () => {
-  const { accounts, recalculateBalances, investments, loading, categories } = useFinance();
+  const { accounts, recalculateBalances, investments, loading, categories, ensureFixedExpensesForMonth } = useFinance();
   const { data: transactionsData, isLoading: isLoadingTransactions } = useTransactions();
   const { theme } = useTheme();
   const { toast } = useToast();
@@ -58,6 +58,10 @@ const Dashboard: React.FC = () => {
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
+
+  useEffect(() => {
+    void ensureFixedExpensesForMonth(currentDate);
+  }, [currentDate, ensureFixedExpensesForMonth]);
 
   // Market Data Hook
   const investorLevel = profile?.level || 'intermediate';

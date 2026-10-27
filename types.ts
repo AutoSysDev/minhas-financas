@@ -41,6 +41,9 @@ export interface Transaction {
   installments?: number; // Total de parcelas
   installmentNumber?: number; // Número da parcela atual (Ex: 1 de 10)
   originalTransactionId?: string; // ID para agrupar parcelas
+  isFixed?: boolean; // Despesa fixa que se repete todo mês
+  fixedExpenseId?: string; // Vínculo interno com a despesa fixa
+  fixedMonth?: string; // Primeiro dia do mês de referência (YYYY-MM-01)
 }
 
 export interface Card {

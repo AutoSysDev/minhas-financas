@@ -5,6 +5,7 @@ import { Modal } from './Modal';
 import { RecurrenceModal, RecurrenceData } from './RecurrenceModal';
 import { Transaction, TransactionType, Card, Account } from '../types';
 import { formatCurrency, getAccountCumulativeBalance } from '../utils/helpers';
+import { isRepetitionTransaction } from '../utils/fixedExpenses';
 import { BANKS } from '../constants';
 import { useTheme } from '../context/ThemeContext';
 import { useFinance } from '../context/FinanceContext';
@@ -15,6 +16,7 @@ interface NewTransactionModalProps {
     cards: Card[];
     accounts: Account[];
     initialData?: Partial<Transaction & { transactionId?: string; receiver?: string }> | null;
+    initialTab?: 'expense' | 'income' | 'credit' | 'transfer';
 }
 
 export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({ onClose, onSave, cards, accounts, initialData, initialTab = 'expense' }) => {
@@ -28,6 +30,7 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({ onClos
     const [selectedSourceId, setSelectedSourceId] = useState('');
     const [selectedDestinationId, setSelectedDestinationId] = useState('');
     const [isPaid, setIsPaid] = useState(true);
+    const [isFixed, setIsFixed] = useState(false);
 
     // Filter categories based on transaction type
     const categoryOptions = React.useMemo(() => {
@@ -90,6 +93,16 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({ onClos
     const [isInstallment, setIsInstallment] = useState(false);
     const [installments, setInstallments] = useState('2');
 
+    const isRepetitionRow = Boolean(
+        initialData &&
+        isRepetitionTransaction({
+            description: initialData.description,
+            installments: initialData.installments,
+            originalTransactionId: initialData.originalTransactionId
+        })
+    );
+    const canBeFixed = (tab === 'expense' || tab === 'credit') && !isRepetitionRow && !isInstallment;
+
     // Detalhes extras
     const [transactionId, setTransactionId] = useState('');
     const [receiverName, setReceiverName] = useState('');
@@ -116,12 +129,17 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({ onClos
             if (initialData.date) setDate(initialData.date);
             if (initialData.category) setCategory(initialData.category);
             if (initialData.isPaid !== undefined) setIsPaid(initialData.isPaid);
+            setIsFixed(Boolean(initialData.isFixed));
 
             if (initialData.type === TransactionType.INCOME) setTab('income');
             else if (initialData.cardId) setTab('credit');
             else setTab('expense');
         }
     }, [initialData]);
+
+    useEffect(() => {
+        if (!canBeFixed && isFixed) setIsFixed(false);
+    }, [canBeFixed, isFixed]);
 
     // Seleção automática de conta/cartão ao mudar de aba
     useEffect(() => {
@@ -164,6 +182,25 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({ onClos
         }
     }, [tab, accounts, cards, selectedSourceId, selectedDestinationId]);
 
+    const resetRecurrence = () => {
+        setRecurrenceData({
+            isActive: false,
+            initialInstallment: 1,
+            count: 2,
+            periodicity: 'monthly'
+        });
+    };
+
+    const handleFixedToggle = (checked: boolean) => {
+        setIsFixed(checked);
+        if (checked) resetRecurrence();
+    };
+
+    const handleRecurrenceSave = (data: RecurrenceData) => {
+        setRecurrenceData(data);
+        if (data.isActive) setIsFixed(false);
+    };
+
     const handleDateChange = (newDate: string) => {
         setDate(newDate);
         const today = new Date().toISOString().split('T')[0];
@@ -192,7 +229,8 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({ onClos
             accountId: (tab === 'expense' || tab === 'income' || tab === 'transfer') ? selectedSourceId : undefined,
             cardId: tab === 'credit' ? selectedSourceId : undefined,
             destinationAccountId: tab === 'transfer' ? selectedDestinationId : undefined,
-            installments: (tab === 'credit' && isInstallment) ? parseInt(installments) : 1
+            installments: (tab === 'credit' && isInstallment) ? parseInt(installments) : 1,
+            isFixed: isFixed && canBeFixed
         };
 
         if (recurrenceData.isActive && !transactionId) {
@@ -328,24 +366,56 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({ onClos
                             <input type="text" required placeholder="Ex: Almoço, Salário" value={description} onChange={e => setDescription(e.target.value)} className={`w-full px-3 py-2 rounded-lg border text-sm focus:ring-1 focus:ring-teal-500/50 outline-none placeholder-gray-400 transition-all ${theme === 'light' ? 'bg-white border-gray-200 text-slate-900' : 'bg-white/[0.05] border-white/[0.1] text-white'}`} />
                         </div>
 
-                        {!transactionId && tab !== 'transfer' && (
+                        {!transactionId && tab !== 'transfer' && !isFixed && !isInstallment && (
                             <div className="pt-1">
                                 <label className={`block text-[10px] font-bold uppercase mb-1 transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Repetição</label>
-                                <button
-                                    type="button"
-                                    onClick={() => setIsRecurrenceModalOpen(true)}
-                                    className={`w-full px-3 py-2.5 rounded-lg border text-sm text-left flex items-center justify-between transition-all ${theme === 'light'
-                                        ? 'bg-white border-gray-200 text-slate-900 hover:bg-gray-50'
-                                        : 'bg-white/[0.05] border-white/[0.1] text-white hover:bg-white/[0.1]'
-                                        }`}
-                                >
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsRecurrenceModalOpen(true)}
+                                        className={`flex-1 px-3 py-2.5 rounded-lg border text-sm text-left flex items-center justify-between transition-all ${theme === 'light'
+                                            ? 'bg-white border-gray-200 text-slate-900 hover:bg-gray-50'
+                                            : 'bg-white/[0.05] border-white/[0.1] text-white hover:bg-white/[0.1]'
+                                            }`}
+                                    >
+                                        <span>
+                                            {recurrenceData.isActive
+                                                ? `${recurrenceData.count}x (${recurrenceData.periodicity === 'monthly' ? 'Mensal' : recurrenceData.periodicity === 'yearly' ? 'Anual' : 'Semanal'})`
+                                                : 'Única'}
+                                        </span>
+                                        <Icon name="chevron_right" className={`text-lg ${theme === 'light' ? 'text-slate-400' : 'text-gray-500'}`} />
+                                    </button>
+                                    {recurrenceData.isActive && (
+                                        <button
+                                            type="button"
+                                            onClick={resetRecurrence}
+                                            className={`px-2.5 py-2.5 rounded-lg border text-xs font-bold transition-colors ${theme === 'light'
+                                                ? 'bg-white border-gray-200 text-slate-500 hover:bg-gray-50'
+                                                : 'bg-white/[0.05] border-white/[0.1] text-gray-300 hover:bg-white/[0.1]'
+                                                }`}
+                                            title="Remover repetição"
+                                        >
+                                            Remover
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {canBeFixed && !recurrenceData.isActive && (
+                            <div className={`pt-3 border-t transition-colors ${theme === 'light' ? 'border-gray-200' : 'border-white/[0.08]'}`}>
+                                <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                                    <input
+                                        type="checkbox"
+                                        checked={isFixed}
+                                        onChange={e => handleFixedToggle(e.target.checked)}
+                                        className="mt-0.5 size-4 accent-teal-500 cursor-pointer"
+                                    />
                                     <span>
-                                        {recurrenceData.isActive
-                                            ? `${recurrenceData.count}x (${recurrenceData.periodicity === 'monthly' ? 'Mensal' : recurrenceData.periodicity === 'yearly' ? 'Anual' : 'Semanal'})`
-                                            : 'Única'}
+                                        <span className={`block text-sm font-bold transition-colors ${theme === 'light' ? 'text-slate-800' : 'text-white'}`}>Despesa fixa (repete todo mês)</span>
+                                        <span className={`block text-[10px] transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Aparece automaticamente todo mês. Para encerrar, edite ou exclua a despesa.</span>
                                     </span>
-                                    <Icon name="chevron_right" className={`text-lg ${theme === 'light' ? 'text-slate-400' : 'text-gray-500'}`} />
-                                </button>
+                                </label>
                             </div>
                         )}
 
@@ -383,6 +453,9 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({ onClos
                                 />
                             ) : (
                                 <input type="date" value={date} onChange={e => handleDateChange(e.target.value)} className={`w-full px-3 py-2.5 rounded-lg border text-sm focus:ring-1 focus:ring-teal-500 outline-none transition-all ${theme === 'light' ? 'bg-white border-gray-200 text-slate-900' : 'bg-white/[0.05] border-white/[0.1] text-white'}`} />
+                            )}
+                            {transactionId && isFixed && (
+                                <p className={`mt-1 text-[10px] transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Despesa fixa: mantenha o mesmo mês; ajuste apenas o dia.</p>
                             )}
                         </div>
                     </div>
@@ -494,7 +567,7 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({ onClos
             <RecurrenceModal
                 isOpen={isRecurrenceModalOpen}
                 onClose={() => setIsRecurrenceModalOpen(false)}
-                onSave={setRecurrenceData}
+                onSave={handleRecurrenceSave}
                 initialData={recurrenceData}
             />
         </>

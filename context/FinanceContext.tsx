@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, ReactNode, useCallback } from 'react';
 import { Account, Budget, Card, Goal, Transaction, TransactionType, Category, Investment } from '../types';
 import { supabase } from '../services/supabase';
+import { fixedExpenseService, FixedDeleteMode } from '../services/fixedExpenseService';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 import { useSharedAccount } from './SharedAccountContext';
@@ -20,6 +21,9 @@ interface FinanceContextType {
   investments: Investment[];
 
   addTransaction: (t: Omit<Transaction, 'id'>) => Promise<void>;
+  addFixedExpense: (t: Omit<Transaction, 'id'>) => Promise<void>;
+  ensureFixedExpensesForMonth: (date: Date) => Promise<void>;
+  deleteFixedExpenseOccurrence: (t: Transaction, mode: FixedDeleteMode) => Promise<void>;
   updateTransaction: (id: string, t: Partial<Transaction>) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
   deleteTransactions: (ids: string[]) => Promise<void>;
@@ -78,6 +82,25 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
     queryClient.invalidateQueries({ queryKey: ['finance'] });
     queryClient.invalidateQueries({ queryKey: ['transactions'] });
   };
+
+  const ensureFixedExpensesForMonth = useCallback(async (date: Date) => {
+    if (!user) return;
+
+    try {
+      const inserted = await fixedExpenseService.ensureForMonth(
+        user.id,
+        date.getFullYear(),
+        date.getMonth()
+      );
+
+      if (inserted > 0) {
+        queryClient.invalidateQueries({ queryKey: ['finance'] });
+        queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      }
+    } catch (error) {
+      console.error('Erro ao preparar despesas fixas:', error);
+    }
+  }, [user, queryClient]);
 
   useEffect(() => {
     if (user && !loading && goals.length === 0) {
@@ -153,6 +176,11 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
     }
   }, [categories, user]);
 
+  useEffect(() => {
+    if (!user || loading) return;
+    void ensureFixedExpensesForMonth(new Date());
+  }, [user, loading, ensureFixedExpensesForMonth]);
+
   const addTransaction = async (newTransaction: Omit<Transaction, 'id'>) => {
     if (!user) {
       toast.error('Usuário não autenticado!');
@@ -214,6 +242,22 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
     invalidateAll();
   };
 
+  const addFixedExpense = async (newTransaction: Omit<Transaction, 'id'>) => {
+    if (!user) {
+      toast.error('Usuário não autenticado!');
+      throw new Error('Usuário não autenticado.');
+    }
+
+    try {
+      await fixedExpenseService.createFixedExpense(user.id, newTransaction);
+      invalidateAll();
+    } catch (error: any) {
+      console.error('Erro ao salvar despesa fixa:', error);
+      toast.error(`Erro ao salvar despesa fixa: ${error.message}`);
+      throw error;
+    }
+  };
+
   const updateTransaction = async (id: string, data: Partial<Transaction>) => {
     if (!user) return;
 
@@ -265,6 +309,19 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
     const { data: transactionsToDelete } = await supabase.from('transactions').select('*').in('id', ids);
 
     if (transactionsToDelete && transactionsToDelete.length > 0) {
+      // Ocorrências de despesa fixa excluídas não devem ser recriadas no mesmo mês.
+      const fixedOccurrences = transactionsToDelete.filter((t: any) => t.fixed_expense_id && t.fixed_month);
+      if (fixedOccurrences.length > 0) {
+        await supabase.from('fixed_expense_skips').upsert(
+          fixedOccurrences.map((t: any) => ({
+            fixed_expense_id: t.fixed_expense_id,
+            user_id: t.user_id,
+            month: t.fixed_month
+          })),
+          { onConflict: 'fixed_expense_id,month', ignoreDuplicates: true }
+        );
+      }
+
       const { error } = await supabase.from('transactions').delete().in('id', ids);
       if (!error) {
 
@@ -303,6 +360,17 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
 
         invalidateAll();
       }
+    }
+  };
+
+  const deleteFixedExpenseOccurrence = async (transaction: Transaction, mode: FixedDeleteMode) => {
+    if (!user) return;
+
+    const ids = await fixedExpenseService.prepareDelete(user.id, transaction, mode);
+    if (ids.length > 0) {
+      await deleteTransactions(ids);
+    } else {
+      invalidateAll();
     }
   };
 
@@ -400,6 +468,12 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   const deleteAccount = async (id: string) => {
     if (!user) return;
+    // Encerra despesas fixas vinculadas à conta antes de removê-la
+    await supabase
+      .from('fixed_expenses')
+      .update({ is_active: false, end_date: new Date().toISOString().split('T')[0], updated_at: new Date().toISOString() })
+      .eq('user_id', user.id)
+      .eq('account_id', id);
     // Primeiro, deletar todas as transações associadas
     await supabase.from('transactions').delete().eq('account_id', id);
     // Depois, deletar a conta
@@ -516,6 +590,12 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   const deleteCard = async (id: string) => {
     if (!user) return;
+    // Encerra despesas fixas vinculadas ao cartão antes de removê-lo
+    await supabase
+      .from('fixed_expenses')
+      .update({ is_active: false, end_date: new Date().toISOString().split('T')[0], updated_at: new Date().toISOString() })
+      .eq('user_id', user.id)
+      .eq('card_id', id);
     // Delete transactions associated with the card first
     await supabase.from('transactions').delete().eq('card_id', id);
 
@@ -901,6 +981,19 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
         .eq('user_id', user.id);
       if (transactionsError) throw transactionsError;
 
+      // 1.1 Excluir despesas fixas e exceções
+      const { error: fixedSkipsError } = await supabase
+        .from('fixed_expense_skips')
+        .delete()
+        .eq('user_id', user.id);
+      if (fixedSkipsError) throw fixedSkipsError;
+
+      const { error: fixedExpensesError } = await supabase
+        .from('fixed_expenses')
+        .delete()
+        .eq('user_id', user.id);
+      if (fixedExpensesError) throw fixedExpensesError;
+
       // 2. Excluir cartões
       const { error: cardsError } = await supabase
         .from('cards')
@@ -964,7 +1057,8 @@ export const FinanceProvider: React.FC<{ children: ReactNode }> = ({ children })
   return (
     <FinanceContext.Provider value={{
       accounts, transactions, cards, budgets, goals, categories, investments,
-      addTransaction, updateTransaction, deleteTransaction, deleteTransactions, addAccount, updateAccount, deleteAccount, addGoal, updateGoal, deleteGoal, addCard, updateCard, deleteCard, addBudget, deleteBudget, addCategory, updateCategory, deleteCategory, addInvestment, updateInvestment, deleteInvestment, linkCardToAccount, setDefaultCard, resetData, recalculateBalances, deleteAllUserData, restoreDefaultCategories, loading
+      addTransaction, updateTransaction, deleteTransaction, deleteTransactions, addAccount, updateAccount, deleteAccount, addGoal, updateGoal, deleteGoal, addCard, updateCard, deleteCard, addBudget, deleteBudget, addCategory, updateCategory, deleteCategory, addInvestment, updateInvestment, deleteInvestment, linkCardToAccount, setDefaultCard, resetData, recalculateBalances, deleteAllUserData, restoreDefaultCategories, loading,
+      addFixedExpense, ensureFixedExpensesForMonth, deleteFixedExpenseOccurrence
     }}>
       {children}
     </FinanceContext.Provider>
