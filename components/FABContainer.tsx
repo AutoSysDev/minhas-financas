@@ -6,9 +6,10 @@ import { useUI } from '../context/UIContext';
 import { useToast } from '../context/ToastContext';
 import { NewTransactionModal } from './NewTransactionModal';
 import { Transaction } from '../types';
+import { fixedTransactionLabel } from '../utils/fixedTransactions';
 
 export const FABContainer: React.FC = () => {
-    const { addTransaction, addFixedExpense, accounts, cards } = useFinance();
+    const { addTransaction, accounts, cards } = useFinance();
     const { setModalOpen } = useUI();
     const { toast } = useToast();
     const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
@@ -18,9 +19,7 @@ export const FABContainer: React.FC = () => {
 
     const handleSaveTransaction = async (transaction: Omit<Transaction, 'id'> | Omit<Transaction, 'id'>[]) => {
         try {
-            if (!Array.isArray(transaction) && transaction.isFixed) {
-                await addFixedExpense(transaction);
-            } else if (Array.isArray(transaction)) {
+            if (Array.isArray(transaction)) {
                 for (const t of transaction) {
                     await addTransaction(t);
                 }
@@ -30,10 +29,14 @@ export const FABContainer: React.FC = () => {
 
             setNewTransactionTab(null);
             setModalOpen(false);
-            toast.success(!Array.isArray(transaction) && transaction.isFixed ? 'Despesa fixa salva com sucesso!' : 'Transação salva com sucesso!');
-        } catch (error) {
+            toast.success(
+                !Array.isArray(transaction) && transaction.isFixed
+                    ? `${fixedTransactionLabel(transaction.type)} salva com sucesso!`
+                    : 'Transação salva com sucesso!'
+            );
+        } catch (error: any) {
             console.error('Erro ao salvar:', error);
-            toast.error('Erro ao salvar transação');
+            toast.error(error?.message || 'Erro ao salvar transação');
         }
     };
 

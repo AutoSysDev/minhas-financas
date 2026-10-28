@@ -5,7 +5,7 @@ import { Modal } from './Modal';
 import { RecurrenceModal, RecurrenceData } from './RecurrenceModal';
 import { Transaction, TransactionType, Card, Account } from '../types';
 import { formatCurrency, getAccountCumulativeBalance } from '../utils/helpers';
-import { isRepetitionTransaction } from '../utils/fixedExpenses';
+import { isRepetitionTransaction, fixedTransactionLabel } from '../utils/fixedTransactions';
 import { BANKS } from '../constants';
 import { useTheme } from '../context/ThemeContext';
 import { useFinance } from '../context/FinanceContext';
@@ -101,7 +101,21 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({ onClos
             originalTransactionId: initialData.originalTransactionId
         })
     );
-    const canBeFixed = (tab === 'expense' || tab === 'credit') && !isRepetitionRow && !isInstallment;
+    const canBeFixed =
+        !isRepetitionRow &&
+        !isInstallment &&
+        (tab === 'expense' ||
+            tab === 'credit' ||
+            tab === 'income' ||
+            (tab === 'transfer' && Boolean(selectedDestinationId)));
+
+    const fixedLabel = fixedTransactionLabel(
+        tab === 'income'
+            ? TransactionType.INCOME
+            : tab === 'transfer'
+                ? TransactionType.TRANSFER
+                : TransactionType.EXPENSE
+    );
 
     // Detalhes extras
     const [transactionId, setTransactionId] = useState('');
@@ -412,8 +426,8 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({ onClos
                                         className="mt-0.5 size-4 accent-teal-500 cursor-pointer"
                                     />
                                     <span>
-                                        <span className={`block text-sm font-bold transition-colors ${theme === 'light' ? 'text-slate-800' : 'text-white'}`}>Despesa fixa (repete todo mês)</span>
-                                        <span className={`block text-[10px] transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Aparece automaticamente todo mês. Para encerrar, edite ou exclua a despesa.</span>
+                                        <span className={`block text-sm font-bold transition-colors ${theme === 'light' ? 'text-slate-800' : 'text-white'}`}>{fixedLabel} (repete todo mês)</span>
+                                        <span className={`block text-[10px] transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Aparece automaticamente todo mês. Para encerrar, edite ou exclua a {tab === 'transfer' ? 'transferência' : 'transação'}.</span>
                                     </span>
                                 </label>
                             </div>
@@ -455,7 +469,7 @@ export const NewTransactionModal: React.FC<NewTransactionModalProps> = ({ onClos
                                 <input type="date" value={date} onChange={e => handleDateChange(e.target.value)} className={`w-full px-3 py-2.5 rounded-lg border text-sm focus:ring-1 focus:ring-teal-500 outline-none transition-all ${theme === 'light' ? 'bg-white border-gray-200 text-slate-900' : 'bg-white/[0.05] border-white/[0.1] text-white'}`} />
                             )}
                             {transactionId && isFixed && (
-                                <p className={`mt-1 text-[10px] transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>Despesa fixa: mantenha o mesmo mês; ajuste apenas o dia.</p>
+                                <p className={`mt-1 text-[10px] transition-colors ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>{fixedLabel}: mantenha o mesmo mês; ajuste apenas o dia.</p>
                             )}
                         </div>
                     </div>

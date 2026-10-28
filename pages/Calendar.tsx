@@ -8,13 +8,13 @@ import { useTheme } from '../context/ThemeContext';
 
 const Calendar: React.FC = () => {
   const { theme } = useTheme();
-  const { transactions, ensureFixedExpensesForMonth } = useFinance();
+  const { transactions, ensureFixedTransactionsForMonth } = useFinance();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
 
   useEffect(() => {
-    void ensureFixedExpensesForMonth(currentDate);
-  }, [currentDate, ensureFixedExpensesForMonth]);
+    void ensureFixedTransactionsForMonth(currentDate);
+  }, [currentDate, ensureFixedTransactionsForMonth]);
 
   // Utilitários de Data
   const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();

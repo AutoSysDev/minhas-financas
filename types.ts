@@ -4,6 +4,9 @@ export enum TransactionType {
   TRANSFER = 'TRANSFER'
 }
 
+/** Perna de uma ocorrência de série fixa (transferência tem duas por mês). */
+export type FixedLeg = 'single' | 'out' | 'in';
+
 export interface Account {
   id: string;
   name: string;
@@ -41,9 +44,10 @@ export interface Transaction {
   installments?: number; // Total de parcelas
   installmentNumber?: number; // Número da parcela atual (Ex: 1 de 10)
   originalTransactionId?: string; // ID para agrupar parcelas
-  isFixed?: boolean; // Despesa fixa que se repete todo mês
-  fixedExpenseId?: string; // Vínculo interno com a despesa fixa
+  isFixed?: boolean; // Série fixa que se repete todo mês
+  fixedTransactionId?: string; // Vínculo interno com a série fixa
   fixedMonth?: string; // Primeiro dia do mês de referência (YYYY-MM-01)
+  fixedLeg?: FixedLeg; // Perna da ocorrência (transferência tem duas)
 }
 
 export interface Card {

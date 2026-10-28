@@ -47,7 +47,7 @@ const Sparkline: React.FC<{ data: number[], color: string }> = ({ data, color })
 };
 
 const Dashboard: React.FC = () => {
-  const { accounts, recalculateBalances, investments, loading, categories, ensureFixedExpensesForMonth } = useFinance();
+  const { accounts, recalculateBalances, investments, loading, categories, ensureFixedTransactionsForMonth } = useFinance();
   const { data: transactionsData, isLoading: isLoadingTransactions } = useTransactions();
   const { theme } = useTheme();
   const { toast } = useToast();
@@ -60,8 +60,8 @@ const Dashboard: React.FC = () => {
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
 
   useEffect(() => {
-    void ensureFixedExpensesForMonth(currentDate);
-  }, [currentDate, ensureFixedExpensesForMonth]);
+    void ensureFixedTransactionsForMonth(currentDate);
+  }, [currentDate, ensureFixedTransactionsForMonth]);
 
   // Market Data Hook
   const investorLevel = profile?.level || 'intermediate';

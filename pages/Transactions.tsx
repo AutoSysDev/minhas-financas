@@ -15,9 +15,10 @@ import { useToast } from '../context/ToastContext';
 import { TransactionListSkeleton } from '../components/TransactionListSkeleton';
 import { useTheme } from '../context/ThemeContext';
 import { MonthYearPicker } from '../components/MonthYearPicker';
+import { fixedTransactionLabel } from '../utils/fixedTransactions';
 
 const Transactions: React.FC = () => {
-  const { cards, accounts, categories, transactions: allTransactions, deleteTransactions, updateTransaction, ensureFixedExpensesForMonth, deleteFixedExpenseOccurrence } = useFinance();
+  const { cards, accounts, categories, transactions: allTransactions, deleteTransactions, updateTransaction, ensureFixedTransactionsForMonth, deleteFixedTransactionOccurrence } = useFinance();
   const { theme } = useTheme();
 
   const [searchParams] = useSearchParams();
@@ -79,19 +80,21 @@ const Transactions: React.FC = () => {
   const executeFixedDelete = async (mode: 'single' | 'future' | 'end') => {
     if (!transactionToDelete) return;
 
+    const label = fixedTransactionLabel(transactionToDelete.type);
+
     try {
-      await deleteFixedExpenseOccurrence(transactionToDelete, mode);
+      await deleteFixedTransactionOccurrence(transactionToDelete, mode);
       const message = mode === 'single'
         ? 'Ocorrência excluída!'
         : mode === 'future'
-          ? 'Despesa fixa excluída deste mês em diante!'
-          : 'Despesa fixa encerrada. O histórico foi mantido.';
+          ? `${label} excluída deste mês em diante!`
+          : `${label} encerrada. O histórico foi mantido.`;
       toast.success(message);
       setDeleteModalOpen(false);
       setTransactionToDelete(null);
       setViewingTransaction(null);
     } catch (e: any) {
-      toast.error("Erro ao excluir despesa fixa: " + e.message);
+      toast.error("Erro ao excluir série fixa: " + e.message);
     }
   };
 
@@ -189,8 +192,8 @@ const Transactions: React.FC = () => {
   }, [searchParams]);
 
   useEffect(() => {
-    void ensureFixedExpensesForMonth(currentDate);
-  }, [currentDate, ensureFixedExpensesForMonth]);
+    void ensureFixedTransactionsForMonth(currentDate);
+  }, [currentDate, ensureFixedTransactionsForMonth]);
 
   // Listen for edit event from details modal
   useEffect(() => {
@@ -237,7 +240,7 @@ const Transactions: React.FC = () => {
 
     setTransactionToDelete(targetTransaction);
 
-    if (targetTransaction.isFixed && targetTransaction.fixedExpenseId) {
+    if (targetTransaction.isFixed && targetTransaction.fixedTransactionId) {
       setRecurringGroup([]);
       setDeleteModalOpen(true);
       return;
@@ -281,8 +284,9 @@ const Transactions: React.FC = () => {
     e.stopPropagation();
     const transactionToDuplicate = transactions.find(t => t.id === id);
     if (transactionToDuplicate) {
-      // Remove ID to treat as new — mantém a data original para não confundir o mês
-      const { id, ...rest } = transactionToDuplicate;
+      // Remove ID to treat as new — mantém a data original para não confundir o mês.
+      // A cópia não entra na série fixa: ela é uma transação avulsa.
+      const { id, isFixed, fixedTransactionId, fixedMonth, fixedLeg, ...rest } = transactionToDuplicate;
       setOcrData({
         ...rest,
         description: `${rest.description} (Cópia)`,
@@ -961,13 +965,13 @@ const Transactions: React.FC = () => {
         <Modal
           isOpen={deleteModalOpen}
           onClose={() => setDeleteModalOpen(false)}
-          title={transactionToDelete?.isFixed ? "Excluir Despesa Fixa" : recurringGroup.length > 0 ? "Excluir Transação Recorrente" : "Excluir Transação"}
+          title={transactionToDelete?.isFixed ? "Excluir Série Fixa" : recurringGroup.length > 0 ? "Excluir Transação Recorrente" : "Excluir Transação"}
         >
           <div className="space-y-4">
             {transactionToDelete?.isFixed ? (
               <>
                 <p className={`text-sm ${theme === 'light' ? 'text-slate-600' : 'text-gray-400'}`}>
-                  Esta despesa é fixa e se repete todo mês. Como deseja prosseguir?
+                  Esta transação é fixa e se repete todo mês. Como deseja prosseguir?
                 </p>
                 <div className="grid grid-cols-1 gap-3">
                   <button
@@ -982,7 +986,7 @@ const Transactions: React.FC = () => {
                     </div>
                     <div className="text-left">
                       <p className="font-bold">Excluir só este mês</p>
-                      <p className="text-xs opacity-60">A despesa continua nos meses seguintes.</p>
+                      <p className="text-xs opacity-60">A série continua nos meses seguintes.</p>
                     </div>
                   </button>
 
@@ -1013,7 +1017,7 @@ const Transactions: React.FC = () => {
                       <Icon name="delete" />
                     </div>
                     <div className="text-left">
-                      <p className="font-bold">Encerrar despesa fixa</p>
+                      <p className="font-bold">Encerrar série fixa</p>
                       <p className="text-xs opacity-60">Mantém este mês e o histórico pago; não gera novos meses.</p>
                     </div>
                   </button>
@@ -1209,12 +1213,16 @@ const DetailsTransactionModal: React.FC<{
             </span>
           )}
           {transaction.isFixed && (
-            <span className={`px-3 py-1 rounded-full text-[10px] font-medium border transition-colors inline-flex items-center gap-1 ${theme === 'light'
-              ? 'bg-teal-50 text-teal-700 border-teal-100'
-              : 'bg-teal-500/10 text-teal-300 border-teal-500/20'
+            <span className={`px-3 py-1 rounded-full text-[10px] font-medium border transition-colors inline-flex items-center gap-1 ${transaction.type === TransactionType.INCOME
+              ? theme === 'light'
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
+              : theme === 'light'
+                ? 'bg-teal-50 text-teal-700 border-teal-100'
+                : 'bg-teal-500/10 text-teal-300 border-teal-500/20'
               }`}>
               <Icon name="event_repeat" className="text-xs" />
-              Despesa fixa
+              {fixedTransactionLabel(transaction.type)}
             </span>
           )}
         </div>

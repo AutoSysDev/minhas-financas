@@ -53,7 +53,10 @@ export const TransactionRow: React.FC<TransactionActionProps> = ({ transaction: 
                     </span>
                 )}
                 {t.isFixed && (
-                    <span className={`ml-2 text-[10px] px-1.5 py-0.5 rounded inline-flex items-center gap-0.5 ${theme === 'light' ? 'bg-teal-50 text-teal-700' : 'bg-teal-500/10 text-teal-300'}`}>
+                    <span className={`ml-2 text-[10px] px-1.5 py-0.5 rounded inline-flex items-center gap-0.5 ${t.type === TransactionType.INCOME
+                        ? theme === 'light' ? 'bg-emerald-50 text-emerald-700' : 'bg-emerald-500/10 text-emerald-300'
+                        : theme === 'light' ? 'bg-teal-50 text-teal-700' : 'bg-teal-500/10 text-teal-300'
+                        }`}>
                         <Icon name="event_repeat" className="text-[10px]" /> Fixa
                     </span>
                 )}
@@ -210,7 +213,10 @@ export const TransactionCard: React.FC<TransactionActionProps> = ({ transaction:
                                 <span className="ml-1 font-normal text-xs opacity-60">({t.installmentNumber}/{t.installments})</span>
                             )}
                             {t.isFixed && (
-                                <span className={`ml-1 font-medium text-[10px] px-1.5 py-0.5 rounded ${theme === 'light' ? 'bg-teal-50 text-teal-700' : 'bg-teal-500/10 text-teal-300'}`}>Fixa</span>
+                                <span className={`ml-1 font-medium text-[10px] px-1.5 py-0.5 rounded ${t.type === TransactionType.INCOME
+                                    ? theme === 'light' ? 'bg-emerald-50 text-emerald-700' : 'bg-emerald-500/10 text-emerald-300'
+                                    : theme === 'light' ? 'bg-teal-50 text-teal-700' : 'bg-teal-500/10 text-teal-300'
+                                    }`}>Fixa</span>
                             )}
                         </p>
                         <div className={`flex items-center gap-2 text-[11px] leading-tight ${theme === 'light' ? 'text-slate-500' : 'text-gray-400'}`}>
